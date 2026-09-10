@@ -31,7 +31,7 @@ namespace image_flip_bosch.Bot.ImgFlip
     public int TemplateId { get; set; } = 0;
 
     [JsonPropertyName("texts")]
-    public string[] Texts { get; set; } = new string[]{};
+    public string[] Texts { get; set; } = Array.Empty<string>();
 
     [JsonPropertyName("meme")]
     public Meme? Meme { get; set; } = null;

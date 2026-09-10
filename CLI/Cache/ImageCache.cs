@@ -42,7 +42,6 @@ namespace image_flip_bosch.Bot.Utils
       _sweeper = Task.Run(() => SweepLoopAsync(_cts.Token));
     }
 
-    /// <summary>Returns the local path for the URL, downloading it if it isn't cached yet.</summary>
     public async Task<string> GetAsync(string url, CancellationToken ct = default)
     {
       string key = KeyFor(url);
@@ -69,14 +68,12 @@ namespace image_flip_bosch.Bot.Utils
       }
     }
 
-    /// <summary>True if a non-expired copy exists on disk.</summary>
     public bool Contains(string url)
     {
       string? path = FindFile(KeyFor(url));
       return path is not null && !IsExpired(path);
     }
 
-    /// <summary>Removes the cached copy. Returns true if something was deleted.</summary>
     public bool Remove(string url)
     {
       string? path = FindFile(KeyFor(url));
@@ -87,7 +84,6 @@ namespace image_flip_bosch.Bot.Utils
       return deleted;
     }
 
-    /// <summary>Deletes every expired file now. Returns how many were removed.</summary>
     public int Sweep()
     {
       int removed = 0;
@@ -102,7 +98,6 @@ namespace image_flip_bosch.Bot.Utils
       return removed;
     }
 
-    /// <summary>Deletes everything in the cache.</summary>
     public void Clear()
     {
       foreach (string file in Directory.EnumerateFiles(_root))
@@ -216,7 +211,7 @@ namespace image_flip_bosch.Bot.Utils
     public async ValueTask DisposeAsync()
     {
       _cts.Cancel();
-      try { await _sweeper; } catch { /* ignore */ }
+      try { await _sweeper; } catch {  }
       _cts.Dispose();
       if (_ownsHttp) _http.Dispose();
       foreach (SemaphoreSlim s in _locks.Values) s.Dispose();

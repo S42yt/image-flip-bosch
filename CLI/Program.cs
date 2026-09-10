@@ -19,6 +19,15 @@ namespace image_flip_bosch.CLI
 
       using Window window = new() { Title = "image_flip_bosch  (Esc to quit)" };
 
+      FrameView text = new()
+      {
+        Title = "Welcome",
+        X = 0,
+        Y = 0,
+        Width = Dim.Fill(),
+        Height = Dim.Fill(),
+      };
+
       FrameView controls = new()
       {
         Title = "Actions",
@@ -77,7 +86,7 @@ namespace image_flip_bosch.CLI
         new Shortcut { Title = "Run", Key = Key.F5, Action = () => runButton.InvokeCommand(Command.Accept), CanFocus = false }
       );
 
-      window.Add(controls, logFrame, statusBar);
+      window.Add(controls, logFrame, statusBar, text);
 
       void Append(string level, string message)
       {
