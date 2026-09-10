@@ -1,11 +1,13 @@
-using image_flip_bosch.Bot.Utils;
-using System.Collections.Concurrent;
-using System.Security.Cryptography;
-using System.Text;
-
-namespace image_flip_bosch.CLI.Utils
+namespace image_flip_bosch.Bot.Utils
 {
-
+  using System;
+  using System.Collections.Concurrent;
+  using System.IO;
+  using System.Net.Http;
+  using System.Security.Cryptography;
+  using System.Text;
+  using System.Threading;
+  using System.Threading.Tasks;
   public sealed class ImageCache : IAsyncDisposable
   {
     private readonly string _root;
@@ -37,7 +39,6 @@ namespace image_flip_bosch.CLI.Utils
       Logger.Info($"ImageCache using {_root} (TTL {TimeToLive}).");
       _sweeper = Task.Run(() => SweepLoopAsync(_cts.Token));
     }
-
     public async Task<string> GetAsync(string url, CancellationToken ct = default)
     {
       string key = KeyFor(url);
@@ -63,13 +64,13 @@ namespace image_flip_bosch.CLI.Utils
         gate.Release();
       }
     }
+    public bool Contains(string url) => TryGetPath(url) is not null;
 
-    public bool Contains(string url)
+    public string? TryGetPath(string url)
     {
       string? path = FindFile(KeyFor(url));
-      return path is not null && !IsExpired(path);
+      return path is not null && !IsExpired(path) ? path : null;
     }
-
     public bool Remove(string url)
     {
       string? path = FindFile(KeyFor(url));
@@ -79,7 +80,6 @@ namespace image_flip_bosch.CLI.Utils
       if (deleted) Logger.Info($"Removed from cache: {url}");
       return deleted;
     }
-
     public int Sweep()
     {
       int removed = 0;
@@ -93,7 +93,6 @@ namespace image_flip_bosch.CLI.Utils
         Logger.Info($"Cache sweep removed {removed} expired file(s).");
       return removed;
     }
-
     public void Clear()
     {
       foreach (string file in Directory.EnumerateFiles(_root))
@@ -138,7 +137,7 @@ namespace image_flip_bosch.CLI.Utils
       using PeriodicTimer timer = new(SweepInterval);
       try
       {
-        Sweep(); 
+        Sweep();
         while (await timer.WaitForNextTickAsync(ct))
           Sweep();
       }
@@ -207,7 +206,7 @@ namespace image_flip_bosch.CLI.Utils
     public async ValueTask DisposeAsync()
     {
       _cts.Cancel();
-      try { await _sweeper; } catch {  }
+      try { await _sweeper; } catch { }
       _cts.Dispose();
       if (_ownsHttp) _http.Dispose();
       foreach (SemaphoreSlim s in _locks.Values) s.Dispose();
