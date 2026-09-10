@@ -63,5 +63,25 @@ namespace image_flip_bosch.Bot.ImgFlip
     {
       throw new NotImplementedException("todo");
     }
+
+    Task<Meme[]> IImgFlipApi.GetMemes()
+    {
+      throw new NotImplementedException();
+    }
+
+    public Task<ResponseImgFlip> CaptionImage(string templateId, string username, string password, string text0, string text1, int maxFontSize, bool noWatermark, MemeCreationBox[] boxes)
+    {
+      throw new NotImplementedException();
+    }
+
+    Task<Meme[]> IImgFlipApi.SearchMemes(string username, string password, string query, EMemeTyp type, bool includeNsfw)
+    {
+      throw new NotImplementedException();
+    }
+
+    Task<Meme> IImgFlipApi.GetMeme(string username, string password, string templateId)
+    {
+      throw new NotImplementedException();
+    }
   }
 }

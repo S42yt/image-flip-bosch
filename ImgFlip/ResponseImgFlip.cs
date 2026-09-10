@@ -14,7 +14,7 @@ namespace image_flip_bosch.Bot.ImgFlip
     public string? ErrorMessage { get; set; } = null;
 
     [JsonPropertyName("data")]
-    public ResonseImgFlipData? resonseImgFlipData { get; set; } = null;
+    public ResonseImgFlipData? ResonseImgFlipData { get; set; } = null;
     
   }
 
