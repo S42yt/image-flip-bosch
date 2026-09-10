@@ -26,6 +26,9 @@ namespace image_flip_bosch.Bot
       {
         System.Console.WriteLine($"{meme.Name}: {meme.Id}");
       }
+
+      var memeRes = await api.CaptionImage("123999232", "WuffWuffie", "akh2uje3mf4m", "test 1", "test 2");
+      System.Console.WriteLine($"{memeRes.ResponseImgFlipData.Url}");
     }
   }
 }
