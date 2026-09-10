@@ -18,12 +18,12 @@ namespace image_flip_bosch.Bot.ImgFlip
      * werden jedoch nicht öffentlich gelistet. 
      * Selten aufgerufene Bilder werden nach einiger Zeit automatisch gelöscht.
      */
-    Dictionary<string, string> CaptionImage(string templateId, string username,string password,string text0,string text1,int maxFontSize, bool noWatermark, MemeCreationBox[] boxes);
+    ResponseImgFlip CaptionImage(string templateId, string username,string password,string text0,string text1,int maxFontSize, bool noWatermark, MemeCreationBox[] boxes);
     /*
      * Fügt einer animierten GIF-Vorlage Text hinzu. 
      * Funktioniert wie /caption_image, unterstützt jedoch nur das boxes-Format (nicht text0/text1).
      */
-    Dictionary<string, string> CaptionGif(string templateId, string username, string password, int maxFontSize, bool noWatermark, MemeCreationBox[] boxes);
+    ResponseImgFlip CaptionGif(string templateId, string username, string password, int maxFontSize, bool noWatermark, MemeCreationBox[] boxes);
     /*
      * Ermöglicht die Suche in über 1 Million Imgflip-Meme-Vorlagen. 
      * Für Autocomplete/Search-as-you-Type wird clientseitiges Caching empfohlen (kein globales Backend-Caching wegen ständiger Updates). 
@@ -42,9 +42,12 @@ namespace image_flip_bosch.Bot.ImgFlip
      * und platziert den Text. Funktioniert am besten mit kurzen, 
      * einfachen Memes mit klaren Textmustern.
      */
-    Dictionary<string, string> AutoMeme(string username, string password, string text, bool noWatermark);
+    ResponseImgFlip AutoMeme(string username, string password, string text, bool noWatermark);
     /*
-     * 
+     * Generiert ein komplettes Meme von Grund auf mittels OpenAI GPT oder dem Imgflip-KI-Modell. 
+     * Wichtig: Das klassische Imgflip-Modell basiert auf unkuratierten Nutzerdaten, 
+     * ist unzensiert und kann anstößige Inhalte enthalten – eigene Inhalts- bzw. Sprachfilter werden empfohlen.
      */
+    ResponseImgFlip AiMeme(string username, string password, EAiModel model, int templateId, string prefixText, bool noWatermark);
   }
 }

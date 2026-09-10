@@ -9,6 +9,13 @@ namespace image_flip_bosch.Bot.ImgFlip
   {
     [JsonPropertyName("success")]
     public bool Success { get; set; } = false;
+
+    [JsonPropertyName("error_message")]
+    public string? ErrorMessage { get; set; } = null;
+
+    [JsonPropertyName("data")]
+    public ResonseImgFlipData? resonseImgFlipData { get; set; } = null;
+    
   }
 
 
@@ -31,8 +38,5 @@ namespace image_flip_bosch.Bot.ImgFlip
 
     [JsonPropertyName("memes")]
     public Meme[]? Memes { get; set; } = null;
-
-    [JsonPropertyName("error_message")]
-    public string? ErrorMessage { get; set; } = null;
   }
 }

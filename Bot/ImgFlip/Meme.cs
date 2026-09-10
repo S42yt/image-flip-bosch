@@ -23,7 +23,7 @@ namespace image_flip_bosch.Bot.ImgFlip
     public int Height { get; set; } = 500;
 
     [JsonPropertyName("box_count")]
-    public int box_counnt { get; set; } = 2;
+    public int BoxCount { get; set; } = 2;
 
     [JsonPropertyName("captions")]
     public int Captions { get; set; } = 0;
