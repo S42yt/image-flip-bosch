@@ -42,7 +42,7 @@ namespace image_flip_bosch.Bot.Utils
       }
       catch
       {
-        try { File.Delete(tempPath); } catch { /* ignore */ }
+        try { File.Delete(tempPath); } catch {}
         throw;
       }
 

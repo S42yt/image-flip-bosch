@@ -1,12 +1,10 @@
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.PixelFormats;
+using SharpConsoleUI;
+using SharpConsoleUI.Controls;
+using SharpConsoleUI.Imaging;
 using System;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
-using Terminal.Gui.App;
-using Terminal.Gui.Views;
-using Color = Terminal.Gui.Drawing.Color;
 
 
 //mal gucken ob das so bleibt oder ob die andere version geiler ist mashallah :P
@@ -15,36 +13,25 @@ namespace image_flip_bosch.CLI.Utils
 {
   public static class ImageDecoder
   {
-    public static Color[,] FromBytes(byte[] data)
+    public static PixelBuffer FromBytes(byte[] data)
     {
-      using Image<Rgba32> img = Image.Load<Rgba32>(data);
-      return FromImage(img);
+      using MemoryStream ms = new(data);
+      return PixelBuffer.FromStream(ms);
     }
 
-    public static Color[,] FromFile(string path) => FromBytes(File.ReadAllBytes(path));
-
-    public static Color[,] FromImage(Image<Rgba32> img)
-    {
-      Color[,] pixels = new Color[img.Width, img.Height];
-      img.ProcessPixelRows(accessor =>
-      {
-        for (int y = 0; y < accessor.Height; y++)
-        {
-          Span<Rgba32> row = accessor.GetRowSpan(y);
-          for (int x = 0; x < row.Length; x++)
-          {
-            Rgba32 p = row[x];
-            pixels[x, y] = new Color(p.R, p.G, p.B);
-          }
-        }
-      });
-      return pixels;
-    }
+    public static PixelBuffer FromFile(string path) => PixelBuffer.FromFile(path);
   }
 
-  public class ImagePreview : ImageView
+  public class ImagePreview : ImageControl
   {
+    private readonly ConsoleWindowSystem _ws;
     private int _loadVersion;
+
+    public ImagePreview(ConsoleWindowSystem ws)
+    {
+      _ws = ws;
+      ScaleMode = ImageScaleMode.Fit;
+    }
 
     public string? CurrentPath { get; private set; }
 
@@ -54,7 +41,7 @@ namespace image_flip_bosch.CLI.Utils
     {
       try
       {
-        Image = ImageDecoder.FromFile(path);
+        Source = ImageDecoder.FromFile(path);
         CurrentPath = path;
         return true;
       }
@@ -66,13 +53,13 @@ namespace image_flip_bosch.CLI.Utils
       }
     }
 
-    public Task LoadAsync(IApplication app, string path, CancellationToken ct = default)
+    public Task LoadAsync(string path, CancellationToken ct = default)
     {
       int version = Interlocked.Increment(ref _loadVersion);
-      return Task.Run(() => LoadCore(app, path, version, ct), ct);
+      return Task.Run(() => LoadCoreAsync(path, version, ct), ct);
     }
 
-    public async Task LoadWhenReadyAsync(IApplication app, string path, TimeSpan? timeout = null, CancellationToken ct = default)
+    public async Task LoadWhenReadyAsync(string path, TimeSpan? timeout = null, CancellationToken ct = default)
     {
       int version = Interlocked.Increment(ref _loadVersion);
       DateTime deadline = DateTime.UtcNow + (timeout ?? TimeSpan.FromSeconds(60));
@@ -82,25 +69,25 @@ namespace image_flip_bosch.CLI.Utils
         if (ct.IsCancellationRequested || version != _loadVersion) return;
         if (DateTime.UtcNow > deadline)
         {
-          app.Invoke(() => LoadFailed?.Invoke(this, $"Timed out waiting for {path}"));
+          await _ws.InvokeAsync(() => LoadFailed?.Invoke(this, $"Timed out waiting for {path}"));
           return;
         }
         await Task.Delay(200, ct);
       }
 
-      await Task.Run(() => LoadCore(app, path, version, ct), ct);
+      await Task.Run(() => LoadCoreAsync(path, version, ct), ct);
     }
 
     public void Clear()
     {
       Interlocked.Increment(ref _loadVersion);
-      Image = null;
+      Source = null;
       CurrentPath = null;
     }
 
-    private void LoadCore(IApplication app, string path, int version, CancellationToken ct)
+    private async Task LoadCoreAsync(string path, int version, CancellationToken ct)
     {
-      Color[,]? pixels = null;
+      PixelBuffer? pixels = null;
       string? error = null;
       try
       {
@@ -113,7 +100,7 @@ namespace image_flip_bosch.CLI.Utils
 
       if (ct.IsCancellationRequested || version != _loadVersion) return;
 
-      app.Invoke(() =>
+      await _ws.InvokeAsync(() =>
       {
         if (version != _loadVersion) return;
         if (pixels is null)
@@ -122,7 +109,7 @@ namespace image_flip_bosch.CLI.Utils
           LoadFailed?.Invoke(this, error ?? "Unknown error");
           return;
         }
-        Image = pixels;
+        Source = pixels;
         CurrentPath = path;
       });
     }
