@@ -4,9 +4,8 @@ using System.Text;
 using System.Net.Http;
 using System.Net.Http.Json;
 using System.Text.Json;
-using image_flip_bosch.Bot.ImgFlip;
 
-namespace image_flip_bosch.ImgFlip
+namespace image_flip_bosch.Bot.ImgFlip
 {
   internal class ImgFlipApi : IImgFlipApi
   {
