@@ -6,7 +6,7 @@ namespace image_flip_bosch.ImgFlip
 {
   public enum EAiModel
   {
-    openai,
-    classic
+    OPENAI,
+    CLASSIC
   }
 }
