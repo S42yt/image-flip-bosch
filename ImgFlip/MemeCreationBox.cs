@@ -1,6 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Text;
 using System.Text.Json.Serialization;
 
 namespace image_flip_bosch.ImgFlip
@@ -27,6 +24,5 @@ namespace image_flip_bosch.ImgFlip
 
     [JsonPropertyName("outline_color")]
     public string OutlineColor { get; set; } = "#000000";
-
   }
 }

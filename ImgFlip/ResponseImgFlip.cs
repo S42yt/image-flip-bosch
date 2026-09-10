@@ -1,6 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Text;
 using System.Text.Json.Serialization;
 
 namespace image_flip_bosch.ImgFlip
@@ -15,10 +12,7 @@ namespace image_flip_bosch.ImgFlip
 
     [JsonPropertyName("data")]
     public ResponseImgFlipData? ResponseImgFlipData { get; set; } = null;
-    
   }
-
-
   public class ResponseImgFlipData
   {
     [JsonPropertyName("url")]

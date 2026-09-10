@@ -9,6 +9,12 @@
   </PropertyGroup>
 
   <ItemGroup>
+<<<<<<< HEAD
+=======
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.12" />
+    <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.12" />
+    <PackageReference Include="SixLabors.ImageSharp" Version="4.1.1" />
+>>>>>>> b2dad3538249b0420104a31e8b1962c40f1c4528
     <PackageReference Include="Terminal.Gui" Version="2.4.17" />
   </ItemGroup>
 
