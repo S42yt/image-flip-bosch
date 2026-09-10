@@ -14,12 +14,12 @@ namespace image_flip_bosch.Bot.ImgFlip
     public string? ErrorMessage { get; set; } = null;
 
     [JsonPropertyName("data")]
-    public ResonseImgFlipData? ResonseImgFlipData { get; set; } = null;
+    public ResponseImgFlipData? ResponseImgFlipData { get; set; } = null;
     
   }
 
 
-  public class ResonseImgFlipData
+  public class ResponseImgFlipData
   {
     [JsonPropertyName("url")]
     public string? Url { get; set; } = null;
