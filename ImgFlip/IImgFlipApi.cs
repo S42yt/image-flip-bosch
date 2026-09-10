@@ -18,7 +18,7 @@ namespace image_flip_bosch.Bot.ImgFlip
      * werden jedoch nicht öffentlich gelistet. 
      * Selten aufgerufene Bilder werden nach einiger Zeit automatisch gelöscht.
      */
-    ResponseImgFlip CaptionImage(string templateId, string username,string password,string text0,string text1,int maxFontSize, bool noWatermark, MemeCreationBox[] boxes);
+    ResponseImgFlip CaptionImage(string templateId, string username,string password,string text0,string text1,int? maxFontSize = null, bool noWatermark = false, MemeCreationBox[]? boxes = null);
     /*
      * Fügt einer animierten GIF-Vorlage Text hinzu. 
      * Funktioniert wie /caption_image, unterstützt jedoch nur das boxes-Format (nicht text0/text1).
