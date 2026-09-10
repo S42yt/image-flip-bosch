@@ -1,13 +1,9 @@
-using System;
+using image_flip_bosch.Bot.Utils;
 using System.Collections.Concurrent;
-using System.IO;
-using System.Net.Http;
 using System.Security.Cryptography;
 using System.Text;
-using System.Threading;
-using System.Threading.Tasks;
 
-namespace image_flip_bosch.Bot.Utils
+namespace image_flip_bosch.CLI.Utils
 {
 
   public sealed class ImageCache : IAsyncDisposable
