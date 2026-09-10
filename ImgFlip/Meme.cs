@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Text;
 using System.Text.Json.Serialization;
 
-namespace image_flip_bosch.Bot.ImgFlip
+namespace image_flip_bosch.ImgFlip
 {
   public class Meme
   {

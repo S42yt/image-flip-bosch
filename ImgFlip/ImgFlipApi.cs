@@ -5,7 +5,7 @@ using System.Net.Http;
 using System.Net.Http.Json;
 using System.Text.Json;
 
-namespace image_flip_bosch.Bot.ImgFlip
+namespace image_flip_bosch.ImgFlip
 {
   internal class ImgFlipApi : IImgFlipApi
   {
@@ -43,37 +43,27 @@ namespace image_flip_bosch.Bot.ImgFlip
         throw new JsonException("Failed to deserialize JSON");
     }
 
-    Meme[] IImgFlipApi.GetMemes()
+    public Task<ResponseImgFlip> CaptionGif(string templateId, string username, string password, int maxFontSize, bool noWatermark, MemeCreationBox[] boxes)
     {
       throw new NotImplementedException();
     }
 
-    ResponseImgFlip IImgFlipApi.CaptionImage(string templateId, string username, string password, string text0, string text1, int maxFontSize, bool noWatermark, MemeCreationBox[] boxes)
+    public Task<ResponseImgFlip> SearchMemes(string username, string password, string query, EMemeTyp type, bool includeNsfw)
     {
       throw new NotImplementedException();
     }
 
-    ResponseImgFlip IImgFlipApi.CaptionGif(string templateId, string username, string password, int maxFontSize, bool noWatermark, MemeCreationBox[] boxes)
+    public Task<ResponseImgFlip> GetMeme(string username, string password, string templateId)
     {
       throw new NotImplementedException();
     }
 
-    Meme[] IImgFlipApi.SearchMemes(string username, string password, string query, EMemeTyp type, bool includeNsfw)
+    public Task<ResponseImgFlip> AutoMeme(string username, string password, string text, bool noWatermark)
     {
       throw new NotImplementedException();
     }
 
-    Meme IImgFlipApi.GetMeme(string username, string password, string templateId)
-    {
-      throw new NotImplementedException();
-    }
-
-    ResponseImgFlip IImgFlipApi.AutoMeme(string username, string password, string text, bool noWatermark)
-    {
-      throw new NotImplementedException();
-    }
-
-    ResponseImgFlip IImgFlipApi.AiMeme(string username, string password, EAiModel model, int templateId, string prefixText, bool noWatermark)
+    public Task<ResponseImgFlip> AiMeme(string username, string password, EAiModel model, int templateId, string prefixText, bool noWatermark)
     {
       throw new NotImplementedException();
     }
