@@ -32,15 +32,12 @@ namespace image_flip_bosch.CLI.Utils.Native
         return await RunAsync("osascript", $"-e '{script.Replace("'", "'\\''")}'");
       }
 
-      if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-      {
-        string start = Path.Combine(initialDirectory, defaultFileName);
-        string? viaZenity = await RunAsync("zenity", $"--file-selection --save --confirm-overwrite --title=\"Save image\" --filename=\"{start}\"");
-        if (viaZenity is not null) return viaZenity;
-        return await RunAsync("kdialog", $"--getsavefilename \"{start}\" --title \"Save image\"");
-      }
+      if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux)) return null;
+      string start = Path.Combine(initialDirectory, defaultFileName);
+      string? viaZenity = await RunAsync("zenity", $"--file-selection --save --confirm-overwrite --title=\"Save image\" --filename=\"{start}\"");
+      if (viaZenity is not null) return viaZenity;
+      return await RunAsync("kdialog", $"--getsavefilename \"{start}\" --title \"Save image\"");
 
-      return null;
     }
 
     private static string Ps(string s) => s.Replace("'", "''");
