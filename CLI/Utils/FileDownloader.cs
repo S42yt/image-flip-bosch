@@ -1,10 +1,11 @@
+using System;
+using System.IO;
+using System.Net.Http;
+using System.Threading;
+using System.Threading.Tasks;
+
 namespace image_flip_bosch.CLI.Utils
 {
-  using System;
-  using System.IO;
-  using System.Net.Http;
-  using System.Threading;
-  using System.Threading.Tasks;
   
   public static class FileDownloader
   {

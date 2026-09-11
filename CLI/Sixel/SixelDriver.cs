@@ -11,6 +11,7 @@ using Size = SharpConsoleUI.Helpers.Size;
 
 namespace image_flip_bosch.CLI.Sixel
 {
+
   public sealed class SixelDriver : IConsoleDriver
   {
     private sealed class Entry
@@ -43,6 +44,13 @@ namespace image_flip_bosch.CLI.Sixel
         lock (_lock) { EnsureMap(size.Width, size.Height, reset: true); _forceAll = true; }
         ScreenResized?.Invoke(this, size);
       };
+    }
+
+    private void EnsureMapFromScreen()
+    {
+      if (_w > 0 && _h > 0) return;
+      Size size = _inner.ScreenSize;
+      EnsureMap(size.Width, size.Height, reset: false);
     }
 
     internal void Register(SixelImageControl control)
@@ -89,7 +97,15 @@ namespace image_flip_bosch.CLI.Sixel
       EmitPending();
     }
 
-    public void Start() => _inner.Start();
+    public void Start()
+    {
+      _inner.Start();
+      lock (_lock)
+      {
+        Size size = _inner.ScreenSize;
+        EnsureMap(size.Width, size.Height, reset: true);
+      }
+    }
     public void Stop() => _inner.Stop();
     public void SetCursorPosition(int x, int y) => _inner.SetCursorPosition(x, y);
     public void SetCursorVisible(bool visible) => _inner.SetCursorVisible(visible);
@@ -98,49 +114,61 @@ namespace image_flip_bosch.CLI.Sixel
     public void WriteClipboardOsc52(string sequence) => _inner.WriteClipboardOsc52(sequence);
     public void ResetCursorShape() => _inner.ResetCursorShape();
     public void Initialize(ConsoleWindowSystem windowSystem) => _inner.Initialize(windowSystem);
-    
     public int GetDirtyCharacterCount() => _inner.GetDirtyCharacterCount();
 
     public void SetNarrowCell(int x, int y, char character, SharpConsoleUI.Color fg, SharpConsoleUI.Color bg)
     {
-      Track(x, y, SixelImageControl.SentinelToId(fg, character));
-      _inner.SetNarrowCell(x, y, character, fg, bg);
+      lock (_lock)
+      {
+        EnsureMapFromScreen();
+        Track(x, y, SixelImageControl.SentinelToId(fg, character));
+      }
+      _inner.SetNarrowCell(x, y, character,  fg, bg);
     }
 
     public void FillCells(int x, int y, int width, char character, SharpConsoleUI.Color fg, SharpConsoleUI.Color bg)
     {
       int id = SixelImageControl.SentinelToId(fg, character);
-      for (int i = 0; i < width; i++) Track(x + i, y, id);
+      lock (_lock)
+      {
+        EnsureMapFromScreen();
+        for (int i = 0; i < width; i++) Track(x + i, y, id);
+      }
       _inner.FillCells(x, y, width, character, fg, bg);
     }
 
     public void WriteBufferRegion(int destX, int destY, CharacterBuffer source, int srcX, int srcY, int width, SharpConsoleUI.Color fallbackBg)
     {
-      for (int i = 0; i < width; i++)
+      if (_entries.Count > 0)
       {
-        Cell cell = source.GetCell(srcX + i, srcY);
-        int id = cell.Character.Value == ' ' ? SixelImageControl.SentinelToId(cell.Foreground) : 0;
-        Track(destX + i, destY, id);
+        lock (_lock)
+        {
+          EnsureMapFromScreen();
+          if (destY >= 0 && destY < _h)
+          {
+            for (int i = 0; i < width; i++)
+            {
+              Cell cell = source.GetCell(srcX + i, srcY);
+              int id = cell.Character.Value == ' ' ? SixelImageControl.SentinelToId(cell.Foreground) : 0;
+              Track(destX + i, destY, id);
+            }
+          }
+        }
       }
       _inner.WriteBufferRegion(destX, destY, source, srcX, srcY, width, fallbackBg);
     }
 
     private void Track(int x, int y, int id)
     {
-      lock (_lock)
-      {
-        Size size = _inner.ScreenSize;
-        EnsureMap(size.Width, size.Height, reset: false);
-        if (x < 0 || y < 0 || x >= _w || y >= _h) return;
+      if (x < 0 || y < 0 || x >= _w || y >= _h) return;
 
-        int idx = y * _w + x;
-        int prev = _map[idx];
-        if (prev == id) return;
+      int idx = y * _w + x;
+      int prev = _map[idx];
+      if (prev == id) return;
 
-        _map[idx] = id;
-        if (prev != 0 && _entries.TryGetValue(prev, out Entry? pe)) pe.Changed = true;
-        if (id != 0 && _entries.TryGetValue(id, out Entry? ne)) ne.Changed = true;
-      }
+      _map[idx] = id;
+      if (prev != 0 && _entries.TryGetValue(prev, out Entry? pe)) pe.Changed = true;
+      if (id != 0 && _entries.TryGetValue(id, out Entry? ne)) ne.Changed = true;
     }
 
     private void EnsureMap(int w, int h, bool reset)
@@ -194,12 +222,9 @@ namespace image_flip_bosch.CLI.Sixel
         SixelFrame? frame = entry.Control.GetFrame(w, h, Capabilities.CellWidth, Capabilities.CellHeight);
         if (frame is null) continue;
 
-        int offX = Math.Max(0, (w - frame.Cols) / 2);
-        int offY = Math.Max(0, (h - frame.Rows) / 2);
-
         StringBuilder sb = new(frame.Data.Length + 32);
         sb.Append("\x1b7");
-        sb.Append("\x1b[").Append(y + offY + 1).Append(';').Append(x + offX + 1).Append('H');
+        sb.Append("\x1b[").Append(y + 1).Append(';').Append(x + 1).Append('H');
         sb.Append(frame.Data);
         sb.Append("\x1b8");
 

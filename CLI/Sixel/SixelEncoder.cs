@@ -7,35 +7,48 @@ using System.Text;
 
 namespace image_flip_bosch.CLI.Sixel
 {
+
   public sealed record SixelFrame(string Data, int Cols, int Rows, int PixelWidth, int PixelHeight);
 
   public static class SixelEncoder
   {
-    public static SixelFrame RenderToCells(byte[] imageData, int maxCols, int maxRows, int cellWidth, int cellHeight, int maxColors = 256, bool dither = true)
+    public static SixelFrame RenderToCells(
+      byte[] imageData,
+      int cols,
+      int rows,
+      int cellWidth,
+      int cellHeight,
+      Rgba32 background,
+      int maxColors = 256,
+      bool dither = true)
     {
-      using Image<Rgba32> image = Image.Load<Rgba32>(imageData);
+      int canvasW = Math.Max(1, cols * cellWidth);
+      int canvasH = Math.Max(1, rows * cellHeight);
 
-      int maxW = Math.Max(1, maxCols * cellWidth);
-      int maxH = Math.Max(1, maxRows * cellHeight);
-      double scale = Math.Min(1.0, Math.Min((double)maxW / image.Width, (double)maxH / image.Height));
-      int targetW = Math.Max(1, (int)Math.Round(image.Width * scale));
-      int targetH = Math.Max(1, (int)Math.Round(image.Height * scale));
+      using Image<Rgba32> source = Image.Load<Rgba32>(imageData);
 
-      if (targetW != image.Width || targetH != image.Height)
-        image.Mutate(x => x.Resize(targetW, targetH));
+      double scale = Math.Min(1.0, Math.Min((double)canvasW / source.Width, (double)canvasH / source.Height));
+      int targetW = Math.Max(1, (int)Math.Round(source.Width * scale));
+      int targetH = Math.Max(1, (int)Math.Round(source.Height * scale));
 
-      string data = Encode(image, maxColors, dither);
-      int cols = (targetW + cellWidth - 1) / cellWidth;
-      int rows = (targetH + cellHeight - 1) / cellHeight;
-      return new SixelFrame(data, cols, rows, targetW, targetH);
+      if (targetW != source.Width || targetH != source.Height)
+        source.Mutate(x => x.Resize(targetW, targetH));
+
+      using Image<Rgba32> canvas = new(canvasW, canvasH, background);
+      int offX = (canvasW - targetW) / 2;
+      int offY = (canvasH - targetH) / 2;
+      canvas.Mutate(x => x.DrawImage(source, new Point(offX, offY), 1f));
+
+      string data = Encode(canvas, maxColors, dither, opaque: true);
+      return new SixelFrame(data, cols, rows, canvasW, canvasH);
     }
 
-    public static string Encode(Image<Rgba32> image, int maxColors = 256, bool dither = true)
+    public static string Encode(Image<Rgba32> image, int maxColors = 256, bool dither = true, bool opaque = false)
     {
       QuantizerOptions options = new()
       {
         MaxColors = Math.Clamp(maxColors, 2, 256),
-        Dither = dither ? KnownDitherings.FloydSteinberg : null,
+        Dither = dither ? KnownDitherings.Bayer4x4 : null,
       };
 
       using IQuantizer<Rgba32> quantizer = new WuQuantizer(options).CreatePixelSpecificQuantizer<Rgba32>(image.Configuration);
@@ -46,7 +59,7 @@ namespace image_flip_bosch.CLI.Sixel
       ReadOnlySpan<Rgba32> palette = indexed.Palette.Span;
 
       StringBuilder sb = new(w * h / 4 + 1024);
-      sb.Append("\x1bP0;1;0q");
+      sb.Append(opaque ? "\x1bP0;0;0q" : "\x1bP0;1;0q");
       sb.Append("\"1;1;").Append(w).Append(';').Append(h);
 
       for (int i = 0; i < palette.Length; i++)

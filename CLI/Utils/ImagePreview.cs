@@ -1,4 +1,3 @@
-//mal gucken ob das so bleibt oder ob die andere version geiler ist mashallah :P
 using image_flip_bosch.CLI.Sixel;
 using SharpConsoleUI;
 using System;
@@ -6,9 +5,10 @@ using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 
+//mal gucken ob das so bleibt oder ob die andere version geiler ist mashallah :P
+
 namespace image_flip_bosch.CLI.Utils
 {
-  
   public class ImagePreview : SixelImageControl
   {
     private readonly ConsoleWindowSystem _ws;
@@ -28,7 +28,7 @@ namespace image_flip_bosch.CLI.Utils
     {
       try
       {
-        SetImage(File.ReadAllBytes(path));
+        SetImage(File.ReadAllBytes(path), path);
         CurrentPath = path;
         return true;
       }
@@ -96,7 +96,7 @@ namespace image_flip_bosch.CLI.Utils
           LoadFailed?.Invoke(this, error ?? "Unknown error");
           return;
         }
-        SetImage(data);
+        SetImage(data, path);
         CurrentPath = path;
       });
     }

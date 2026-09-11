@@ -1,4 +1,3 @@
-
 namespace image_flip_bosch.CLI.TUI
 {
   using image_flip_bosch.CLI.Config;
@@ -41,7 +40,7 @@ namespace image_flip_bosch.CLI.TUI
       _username.Input = current.Username ?? string.Empty;
 
       _password = Controls.Prompt(" Password ")
-        .WithPlaceholder(setup.IsConfigured ? "unchanged" : "required to create memes")
+        .WithPlaceholder(setup.IsConfigured ? "unchanged" : "optional")
         .WithMaskCharacter('*')
         .UnfocusOnEnter(false)
         .OnEntered((_, _) => _window.FocusControl(_maxFontSize))
@@ -75,7 +74,7 @@ namespace image_flip_bosch.CLI.TUI
         .Minimizable(false)
         .Maximizable(false)
         .AddControls(
-          Controls.Markup("[dim]Browsing templates works without an account. Creating memes needs an Imgflip login.[/]").Build(),
+          Controls.Markup("[dim]No account needed. An Imgflip login is only used for account-bound and premium features.[/]").Build(),
           _username,
           _password,
           _maxFontSize,

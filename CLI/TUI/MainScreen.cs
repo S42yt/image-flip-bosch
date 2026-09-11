@@ -1,8 +1,8 @@
 namespace image_flip_bosch.CLI.TUI
 {
   using image_flip_bosch.CLI.Config;
-  using image_flip_bosch.CLI.Utils;
   using image_flip_bosch.CLI.Config.ImgFlip;
+  using image_flip_bosch.CLI.Utils;
   using image_flip_bosch.ImgFlip;
   using SharpConsoleUI;
   using SharpConsoleUI.Builders;
@@ -16,6 +16,7 @@ namespace image_flip_bosch.CLI.TUI
   using System.Collections.Generic;
   using System.IO;
   using System.Linq;
+  using System.Threading;
   using System.Threading.Tasks;
 
   internal sealed class MainScreen
@@ -39,6 +40,7 @@ namespace image_flip_bosch.CLI.TUI
     private Meme? _selected;
     private string? _resultUrl;
     private bool _busy;
+    private CancellationTokenSource? _previewCts;
 
     public MainScreen(ConsoleWindowSystem ws, ImageCache cache, ImgflipSession imgflip, ConfigStore<AppConfig> configStore, ImgflipSetup setup)
     {
@@ -57,7 +59,7 @@ namespace image_flip_bosch.CLI.TUI
       _templates = Controls.List("Templates")
         .WithVerticalAlignment(VerticalAlignment.Fill)
         .WithAlignment(HorizontalAlignment.Stretch)
-        .OnSelectedItemChanged((_, item) => _ = OnTemplateSelectedAsync(item))
+        .OnSelectedItemChanged((_, item) => OnTemplateSelected(item))
         .OnItemActivated((_, _) => _window.FocusControl(_topText))
         .Build();
 
@@ -152,7 +154,7 @@ namespace image_flip_bosch.CLI.TUI
       _window.State = WindowState.Maximized;
       _window.FocusControl(_filter);
       if (!_setup.IsConfigured)
-        Log("[dim]No Imgflip login yet. Browse freely, press ^O to add one before creating memes.[/]");
+        Log("[dim]No Imgflip login. Memes get the imgflip watermark; add an account under ^O to change settings.[/]");
       _ = LoadTemplatesAsync();
     }
 
@@ -209,15 +211,16 @@ namespace image_flip_bosch.CLI.TUI
         ? _allMemes
         : _allMemes.Where(m => m.Name.Contains(needle, StringComparison.OrdinalIgnoreCase));
 
-      _templates.ClearItems();
-      foreach (Meme meme in visible)
-        _templates.AddItem(new ListItem($"{meme.Name} [dim]({meme.BoxCount})[/]") { Tag = meme });
+      List<ListItem> items = visible
+        .Select(meme => new ListItem($"{MarkupParser.Escape(meme.Name)} [dim]({meme.BoxCount})[/]") { Tag = meme })
+        .ToList();
 
-      if (_templates.Items.Count > 0)
+      _templates.Items = items;
+      if (items.Count > 0)
         _templates.SelectedIndex = 0;
     }
 
-    private async Task OnTemplateSelectedAsync(ListItem? item)
+    private void OnTemplateSelected(ListItem? item)
     {
       if (item?.Tag is not Meme meme || ReferenceEquals(meme, _selected)) return;
 
@@ -231,12 +234,22 @@ namespace image_flip_bosch.CLI.TUI
         meme.BoxCount > 2 ? "[yellow]Only top/bottom text is filled here.[/]" : string.Empty,
       ]);
 
+      _previewCts?.Cancel();
+      CancellationTokenSource cts = new();
+      _previewCts = cts;
+      _ = LoadTemplatePreviewAsync(meme, cts.Token);
+    }
+
+    private async Task LoadTemplatePreviewAsync(Meme meme, CancellationToken ct)
+    {
       try
       {
-        string path = await _cache.GetAsync(meme.Url);
-        if (ReferenceEquals(meme, _selected))
-          await _preview.LoadWhenReadyAsync(path);
+        await Task.Delay(150, ct);
+        string path = await _cache.GetAsync(meme.Url, ct);
+        if (ct.IsCancellationRequested) return;
+        await _preview.LoadWhenReadyAsync(path, ct: ct);
       }
+      catch (OperationCanceledException) { }
       catch (Exception ex)
       {
         Log($"[red]Template download failed:[/] {MarkupParser.Escape(ex.Message)}");
@@ -247,12 +260,6 @@ namespace image_flip_bosch.CLI.TUI
     {
       if (_busy) { Log("[yellow]Busy.[/]"); return; }
       if (_selected is null) { Log("[yellow]Select a template first.[/]"); return; }
-      if (!_setup.IsConfigured)
-      {
-        Log("[yellow]Creating memes needs an Imgflip login. Opening settings.[/]");
-        OpenSettings();
-        return;
-      }
 
       string top = _topText.Input.Trim();
       string bottom = _bottomText.Input.Trim();
@@ -268,12 +275,13 @@ namespace image_flip_bosch.CLI.TUI
       try
       {
         ImgflipConfig options = _configStore.Load().Imgflip;
+        _previewCts?.Cancel();
         string url = await _imgflip.CaptionImage(
           _selected.Id,
           top,
           bottom,
           options.MaxFontSize,
-          options.NoWatermark ? true : null);
+          options.NoWatermark && _imgflip.IsAuthenticated ? true : null);
 
         _resultUrl = url;
         Log($"[green]Created:[/] {MarkupParser.Escape(url)}");

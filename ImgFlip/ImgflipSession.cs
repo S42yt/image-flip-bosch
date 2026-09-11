@@ -10,16 +10,20 @@ namespace image_flip_bosch.ImgFlip
 
   internal sealed class ImgflipSession
   {
-    private readonly IImgFlipApi _api;
-    private readonly Func<ImgflipCredentials> _credentials;
+    private static readonly ImgflipCredentials Anonymous = new(string.Empty, string.Empty);
 
-    public ImgflipSession(IImgFlipApi api, Func<ImgflipCredentials> credentials)
+    private readonly IImgFlipApi _api;
+    private readonly Func<ImgflipCredentials?> _credentials;
+
+    public ImgflipSession(IImgFlipApi api, Func<ImgflipCredentials?> credentials)
     {
       _api = api;
-      _credentials = credentials;
+      _credentials = () => credentials() ?? Anonymous;
     }
 
-    public ImgflipSession(IImgFlipApi api, ImgflipCredentials credentials) : this(api, () => credentials) { }
+    public ImgflipSession(IImgFlipApi api, ImgflipCredentials? credentials = null) : this(api, () => credentials) { }
+
+    public bool IsAuthenticated => !string.IsNullOrEmpty(_credentials().Username);
 
     public Task<Meme[]> GetMemes() => _api.GetMemes();
 

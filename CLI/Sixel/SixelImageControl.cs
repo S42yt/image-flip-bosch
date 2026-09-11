@@ -1,7 +1,9 @@
 ﻿using SharpConsoleUI;
 using SharpConsoleUI.Controls;
 using SharpConsoleUI.Layout;
+using SixLabors.ImageSharp.PixelFormats;
 using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -13,12 +15,16 @@ namespace image_flip_bosch.CLI.Sixel
     private static int _nextId;
 
     private readonly object _lock = new();
+    private readonly Dictionary<string, SixelFrame> _frameCache = new();
+    private readonly LinkedList<string> _frameOrder = new();
     private byte[]? _data;
+    private string? _cacheKey;
     private int _version;
     private SixelFrame? _frame;
     private (int cols, int rows, int cw, int ch, int version)? _frameKey;
     private (int cols, int rows, int cw, int ch, int version)? _encodingKey;
     private SixelDriver? _driver;
+    private Rgba32 _background = new(0, 0, 0);
 
     public SixelImageControl()
     {
@@ -30,6 +36,8 @@ namespace image_flip_bosch.CLI.Sixel
     public int MaxColors { get; set; } = 256;
 
     public bool Dither { get; set; } = true;
+
+    public int FrameCacheSize { get; set; } = 24;
 
     public event EventHandler<string>? EncodeFailed;
 
@@ -47,11 +55,12 @@ namespace image_flip_bosch.CLI.Sixel
       return (fg.G << 8) | fg.B;
     }
 
-    public void SetImage(byte[]? data)
+    public void SetImage(byte[]? data, string? cacheKey = null)
     {
       lock (_lock)
       {
         _data = data;
+        _cacheKey = cacheKey;
         _version++;
         _frame = null;
         _frameKey = null;
@@ -79,6 +88,7 @@ namespace image_flip_bosch.CLI.Sixel
       int y1 = bounds.Y + bounds.Height - Margin.Bottom;
 
       Color fg = _data is null ? defaultForeground : Sentinel;
+      _background = new Rgba32(defaultBackground.R, defaultBackground.G, defaultBackground.B);
 
       for (int y = Math.Max(y0, clipRect.Y); y < Math.Min(y1, clipRect.Y + clipRect.Height); y++)
         for (int x = Math.Max(x0, clipRect.X); x < Math.Min(x1, clipRect.X + clipRect.Width); x++)
@@ -88,7 +98,9 @@ namespace image_flip_bosch.CLI.Sixel
     internal SixelFrame? GetFrame(int cols, int rows, int cellWidth, int cellHeight)
     {
       byte[]? data;
+      string? cacheId;
       (int, int, int, int, int) key;
+      Rgba32 background = _background;
 
       lock (_lock)
       {
@@ -101,6 +113,16 @@ namespace image_flip_bosch.CLI.Sixel
           HasPendingFrame = false;
           return _frame;
         }
+
+        cacheId = _cacheKey is null ? null : $"{_cacheKey}|{cols}x{rows}|{cellWidth}x{cellHeight}|{background.PackedValue}";
+        if (cacheId is not null && _frameCache.TryGetValue(cacheId, out SixelFrame? cached))
+        {
+          _frame = cached;
+          _frameKey = key;
+          HasPendingFrame = false;
+          return cached;
+        }
+
         if (_encodingKey == key) return null;
         _encodingKey = key;
       }
@@ -115,7 +137,7 @@ namespace image_flip_bosch.CLI.Sixel
         string? error = null;
         try
         {
-          frame = SixelEncoder.RenderToCells(data, cols, rows, cellWidth, cellHeight, maxColors, dither);
+          frame = SixelEncoder.RenderToCells(data, cols, rows, cellWidth, cellHeight, background, maxColors, dither);
         }
         catch (Exception ex)
         {
@@ -130,6 +152,7 @@ namespace image_flip_bosch.CLI.Sixel
           _frame = frame;
           _frameKey = key;
           HasPendingFrame = true;
+          if (cacheId is not null) Remember(cacheId, frame);
         }
 
         if (error is not null)
@@ -143,6 +166,19 @@ namespace image_flip_bosch.CLI.Sixel
       });
 
       return null;
+    }
+
+    private void Remember(string id, SixelFrame frame)
+    {
+      if (_frameCache.ContainsKey(id)) return;
+      _frameCache[id] = frame;
+      _frameOrder.AddLast(id);
+      while (_frameOrder.Count > Math.Max(1, FrameCacheSize))
+      {
+        string oldest = _frameOrder.First!.Value;
+        _frameOrder.RemoveFirst();
+        _frameCache.Remove(oldest);
+      }
     }
 
     private void EnsureDriver()

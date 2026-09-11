@@ -1,6 +1,5 @@
-using image_flip_bosch.CLI.Config.ImgFlip;
-using image_flip_bosch.CLI.Utils;
 using image_flip_bosch.CLI.Config;
+using image_flip_bosch.CLI.Config.ImgFlip;
 using image_flip_bosch.CLI.Sixel;
 using image_flip_bosch.CLI.TUI;
 using image_flip_bosch.CLI.Utils;
@@ -13,6 +12,7 @@ using System.Threading.Tasks;
 
 namespace image_flip_bosch.CLI
 {
+
   public class Program
   {
     public static async Task<int> Main(string[] args)
@@ -39,7 +39,7 @@ namespace image_flip_bosch.CLI
         TimeSpan.FromHours(config.Cache.TtlHours),
         TimeSpan.FromMinutes(config.Cache.SweepMinutes));
 
-      ImgflipSession imgflip = new(new ImgFlipApi(), setup.RequireCredentials);
+      ImgflipSession imgflip = new(new ImgFlipApi(), setup.GetCredentials);
 
       SixelCapabilities sixel = SixelTerminal.Probe();
       Logger.Info($"Sixel: supported={sixel.Supported} cell={sixel.CellWidth}x{sixel.CellHeight}");
