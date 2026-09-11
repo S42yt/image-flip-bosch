@@ -2,8 +2,10 @@
 using SharpConsoleUI.Core;
 using SharpConsoleUI.Drivers;
 using SharpConsoleUI.Layout;
+using System.Drawing;
 using System.Text;
 using Size = SharpConsoleUI.Helpers.Size;
+
 
 namespace image_flip_bosch.CLI.Sixel
 {
@@ -18,8 +20,10 @@ namespace image_flip_bosch.CLI.Sixel
 
     private readonly IConsoleDriver _inner;
     private readonly Dictionary<int, Entry> _entries = new();
-    private readonly Stream _stdout = Console.OpenStandardOutput();
     private readonly Lock _lock = new();
+    private int _cursorX;
+    private int _cursorY;
+    private readonly bool _disabled = Environment.GetEnvironmentVariable("IFB_NO_SIXEL") is not null;
     private int[] _map = [];
     private int _w;
     private int _h;
@@ -103,7 +107,12 @@ namespace image_flip_bosch.CLI.Sixel
       }
     }
     public void Stop() => _inner.Stop();
-    public void SetCursorPosition(int x, int y) => _inner.SetCursorPosition(x, y);
+    public void SetCursorPosition(int x, int y)
+    {
+      _cursorX = x;
+      _cursorY = y;
+      _inner.SetCursorPosition(x, y);
+    }
     public void SetCursorVisible(bool visible) => _inner.SetCursorVisible(visible);
     public void SetCursorShape(CursorShape shape) => _inner.SetCursorShape(shape);
     public void SetCursorShape(CursorShape shape, CursorBlink blink) => _inner.SetCursorShape(shape, blink);
@@ -112,17 +121,17 @@ namespace image_flip_bosch.CLI.Sixel
     public void Initialize(ConsoleWindowSystem windowSystem) => _inner.Initialize(windowSystem);
     public int GetDirtyCharacterCount() => _inner.GetDirtyCharacterCount();
 
-    public void SetNarrowCell(int x, int y, char character, Color fg, Color bg)
+    public void SetNarrowCell(int x, int y, char character, SharpConsoleUI.Color fg, SharpConsoleUI.Color bg)
     {
       lock (_lock)
       {
         EnsureMapFromScreen();
         Track(x, y, SixelImageControl.SentinelToId(fg, character));
       }
-      _inner.SetNarrowCell(x, y, character,  fg, bg);
+      _inner.SetNarrowCell(x, y, character, fg, bg);
     }
 
-    public void FillCells(int x, int y, int width, char character, Color fg, Color bg)
+    public void FillCells(int x, int y, int width, char character, SharpConsoleUI.Color fg, SharpConsoleUI.Color bg)
     {
       int id = SixelImageControl.SentinelToId(fg, character);
       lock (_lock)
@@ -133,7 +142,7 @@ namespace image_flip_bosch.CLI.Sixel
       _inner.FillCells(x, y, width, character, fg, bg);
     }
 
-    public void WriteBufferRegion(int destX, int destY, CharacterBuffer source, int srcX, int srcY, int width, Color fallbackBg)
+    public void WriteBufferRegion(int destX, int destY, CharacterBuffer source, int srcX, int srcY, int width, SharpConsoleUI.Color fallbackBg)
     {
       if (_entries.Count > 0)
       {
@@ -178,11 +187,12 @@ namespace image_flip_bosch.CLI.Sixel
 
     private void EmitPending()
     {
+      if (_disabled) return;
       List<(Entry entry, int x, int y, int w, int h)> ready = new();
 
       lock (_lock)
       {
-        foreach (Entry entry in _entries.Values.Where(entry => _forceAll || entry is not { Changed: false, Control.HasPendingFrame: false }))
+        foreach (Entry entry in _entries.Values.Where(entry => _forceAll || entry.Changed || entry.Control.HasPendingFrame))
         {
           entry.Changed = false;
 
@@ -218,15 +228,16 @@ namespace image_flip_bosch.CLI.Sixel
         SixelFrame? frame = entry.Control.GetFrame(w, h, Capabilities.CellWidth, Capabilities.CellHeight);
         if (frame is null) continue;
 
-        StringBuilder sb = new(frame.Data.Length + 32);
-        sb.Append("\x1b7");
+        StringBuilder sb = new(frame.Data.Length + 48);
+        sb.Append("\x1b[0m");
         sb.Append("\x1b[").Append(y + 1).Append(';').Append(x + 1).Append('H');
         sb.Append(frame.Data);
-        sb.Append("\x1b8");
+        sb.Append("\x1b[0m");
+        sb.Append("\x1b[").Append(_cursorY + 1).Append(';').Append(_cursorX + 1).Append('H');
 
-        byte[] bytes = Encoding.ASCII.GetBytes(sb.ToString());
-        _stdout.Write(bytes, 0, bytes.Length);
-        _stdout.Flush();
+        image_flip_bosch.CLI.Utils.ConsoleTap.Note($"sixel at {x},{y} {w}x{h} chars={frame.Data.Length}");
+        Console.Out.Write(sb.ToString());
+        Console.Out.Flush();
       }
     }
   }

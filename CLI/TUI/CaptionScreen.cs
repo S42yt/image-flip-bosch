@@ -11,7 +11,7 @@ namespace image_flip_bosch.CLI.TUI
   internal sealed class CaptionScreen
   {
     private readonly ConsoleWindowSystem _ws;
-    private readonly List<PromptControl> _inputs = new();
+    private readonly List<PromptControl> _inputs = [];
     private readonly Window _window;
     private readonly TaskCompletionSource<string[]?> _result = new();
     private bool _submitted;

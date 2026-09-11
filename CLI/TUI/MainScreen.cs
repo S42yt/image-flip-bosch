@@ -100,11 +100,11 @@ namespace image_flip_bosch.CLI.TUI
 
       StatusBarControl statusBar = Controls.StatusBar()
         .AddLeft("F5", "Caption", () => _ = OpenCaptionsAsync())
-        .AddLeft("F6", "Copy URL", CopyResultUrl)
-        .AddLeft("F7", "Save image", () => _ = SaveCurrentAsync())
-        .AddLeft("F8", "Settings", OpenSettings)
-        .AddLeft("F9", "Reload", () => _ = LoadTemplatesAsync())
-        .AddRight("F4", "Quit", () => _ws.Shutdown())
+        .AddLeft("ALT + C", "Copy URL", CopyResultUrl)
+        .AddLeft("ALT + S", "Save image", () => _ = SaveCurrentAsync())
+        .AddLeft("ALT + O", "Settings", OpenSettings)
+        .AddLeft("ALT + R", "Reload", () => _ = LoadTemplatesAsync())
+        .AddRight("ALT + X", "Quit", () => _ws.Shutdown())
         .StickyBottom()
         .Build();
 
@@ -124,10 +124,12 @@ namespace image_flip_bosch.CLI.TUI
 
     public void Show()
     {
-      _ws.RegisterGlobalShortcut(ConsoleModifiers.Control, ConsoleKey.S, () => _ = SaveCurrentAsync());
-      _ws.RegisterGlobalShortcut(ConsoleModifiers.Control, ConsoleKey.O, OpenSettings);
-      _ws.RegisterGlobalShortcut(ConsoleModifiers.Control, ConsoleKey.R, () => _ = LoadTemplatesAsync());
-      _ws.RegisterGlobalShortcut(ConsoleModifiers.Control, ConsoleKey.X, () => _ws.Shutdown());
+      _ws.RegisterGlobalShortcut(ConsoleModifiers.Alt, ConsoleKey.F5, () => _ = OpenCaptionsAsync());
+      _ws.RegisterGlobalShortcut(ConsoleModifiers.Alt, ConsoleKey.C, CopyResultUrl);
+      _ws.RegisterGlobalShortcut(ConsoleModifiers.Alt, ConsoleKey.S, () => _ = SaveCurrentAsync());
+      _ws.RegisterGlobalShortcut(ConsoleModifiers.Alt, ConsoleKey.O, OpenSettings);
+      _ws.RegisterGlobalShortcut(ConsoleModifiers.Alt, ConsoleKey.R, () => _ = LoadTemplatesAsync());
+      _ws.RegisterGlobalShortcut(ConsoleModifiers.Alt, ConsoleKey.X, () => _ws.Shutdown());
 
       _ws.AddWindow(_window);
       _window.State = WindowState.Maximized;
@@ -139,7 +141,8 @@ namespace image_flip_bosch.CLI.TUI
 
     private void OnKey(object? sender, KeyPressedEventArgs e)
     {
-      bool ctrl = e.KeyInfo.Modifiers.HasFlag(ConsoleModifiers.Control);
+      //bool ctrl = e.KeyInfo.Modifiers.HasFlag(ConsoleModifiers.Control);
+      bool alt = e.KeyInfo.Modifiers.HasFlag(ConsoleModifiers.Alt);
       if (e.KeyInfo.Key == ConsoleKey.F5)
       {
         new MemeCreationScreen(_ws, _window).Show();
@@ -151,16 +154,11 @@ namespace image_flip_bosch.CLI.TUI
       switch (e.KeyInfo.Key)
       {
         case ConsoleKey.F5: _ = OpenCaptionsAsync(); e.Handled = true; break;
-        case ConsoleKey.F6: CopyResultUrl(); e.Handled = true; break;
-        case ConsoleKey.F7: _ = SaveCurrentAsync(); e.Handled = true; break;
-        case ConsoleKey.F8: OpenSettings(); e.Handled = true; break;
-        case ConsoleKey.F9: _ = LoadTemplatesAsync(); e.Handled = true; break;
-        case ConsoleKey.F4: _ws.Shutdown(); e.Handled = true; break;
-        case ConsoleKey.C when ctrl: CopyResultUrl(); e.Handled = true; break;
-        case ConsoleKey.S when ctrl: _ = SaveCurrentAsync(); e.Handled = true; break;
-        case ConsoleKey.R when ctrl: _ = LoadTemplatesAsync(); e.Handled = true; break;
-        case ConsoleKey.O when ctrl: OpenSettings(); e.Handled = true; break;
-        case ConsoleKey.X when ctrl: _ws.Shutdown(); e.Handled = true; break;
+        case ConsoleKey.C when alt: CopyResultUrl(); e.Handled = true; break;
+        case ConsoleKey.S when alt: _ = SaveCurrentAsync(); e.Handled = true; break;
+        case ConsoleKey.R when alt: _ = LoadTemplatesAsync(); e.Handled = true; break;
+        case ConsoleKey.O when alt: OpenSettings(); e.Handled = true; break;
+        case ConsoleKey.X when alt: _ws.Shutdown(); e.Handled = true; break;
       }
     }
 
