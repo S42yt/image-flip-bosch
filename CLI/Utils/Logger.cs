@@ -1,4 +1,4 @@
-namespace image_flip_bosch.Bot.Utils
+namespace image_flip_bosch.CLI.Utils
 {
   public static class Logger
   {
@@ -6,7 +6,7 @@ namespace image_flip_bosch.Bot.Utils
 
     public static Level MinLevel { get; set; } = Level.Debug;
 
-    private static readonly object Sync = new();
+    private static readonly Lock Sync = new();
 
     public static void Debug(string message) => Write(Level.Debug, message);
     public static void Info(string message) => Write(Level.Info, message);
@@ -20,7 +20,7 @@ namespace image_flip_bosch.Bot.Utils
 
       lock (Sync)
       {
-        var previous = Console.ForegroundColor;
+        ConsoleColor previous = Console.ForegroundColor;
         Console.ForegroundColor = level switch
         {
           Level.Debug => ConsoleColor.DarkGray,

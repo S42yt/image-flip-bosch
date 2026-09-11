@@ -1,131 +1,64 @@
+using image_flip_bosch.CLI.Config;
+using image_flip_bosch.CLI.Config.ImgFlip;
+using image_flip_bosch.CLI.Sixel;
+using image_flip_bosch.CLI.TUI;
+using image_flip_bosch.CLI.Utils;
+using image_flip_bosch.ImgFlip;
+using SharpConsoleUI;
+using SharpConsoleUI.Configuration;
+using SharpConsoleUI.Drivers;
+using image_flip_bosch.CLI.Utils.Image;
+using image_flip_bosch.ImgFlip.Auth;
+
 namespace image_flip_bosch.CLI
 {
-  using image_flip_bosch.Bot.Utils;
-  using System;
-  using System.Threading.Tasks;
-  using Terminal.Gui.App;
-  using Terminal.Gui.Input;
-  using Terminal.Gui.ViewBase;
-  using Terminal.Gui.Views;
 
-  public class Program
+  public abstract class Program
   {
-    public static async Task Main(string[] args)
+    public static async Task<int> Main(string[] args)
     {
       Logger.Info("Starting the application...");
 
-      using IApplication app = Application.Create();
-      app.Init();
+      ConfigStore<AppConfig> configStore = new();
+      AppConfig config = configStore.Load();
+      ImgflipSetup setup = new(configStore);
 
-      using Window window = new() { Title = "image_flip_bosch  (Esc to quit)" };
-
-      FrameView controls = new()
+      if (args.Length > 0 && args[0] == "logout")
       {
-        Title = "Actions",
-        X = 0,
-        Y = 0,
-        Width = 30,
-        Height = Dim.Fill(1),
-      };
-
-      Button runButton = new()
-      {
-        Text = "_Run job",
-        X = 1,
-        Y = 1,
-        IsDefault = true,
-      };
-
-      ProgressBar progress = new()
-      {
-        X = 1,
-        Y = Pos.Bottom(runButton) + 1,
-        Width = Dim.Fill(1),
-        Fraction = 0f,
-      };
-
-      controls.Add(runButton, progress);
-
-      FrameView logFrame = new()
-      {
-        Title = "Log",
-        X = Pos.Right(controls),
-        Y = 0,
-        Width = Dim.Fill(),
-        Height = Dim.Fill(1),
-      };
-
-      TextView log = new()
-      {
-        X = 0,
-        Y = 0,
-        Width = Dim.Fill(),
-        Height = Dim.Fill(),
-        ReadOnly = true,
-        WordWrap = true,
-      };
-
-      logFrame.Add(log);
-
-      StatusBar statusBar = new()
-      {
-        Y = Pos.AnchorEnd(),
-        CanFocus = false,
-      };
-      statusBar.Add(
-        new Shortcut { Title = "Quit", Key = Key.Esc, Action = () => app.RequestStop(), CanFocus = false },
-        new Shortcut { Title = "Run", Key = Key.F5, Action = () => runButton.InvokeCommand(Command.Accept), CanFocus = false }
-      );
-
-      window.Add(controls, logFrame, statusBar);
-
-      void Append(string level, string message)
-      {
-        log.Text += $"[{DateTime.Now:HH:mm:ss}] {level,-5} {message}\n";
-        log.MoveEnd();
+        Logger.Info(setup.Clear() ? "Imgflip credentials removed." : "No credentials stored.");
+        return 0;
       }
 
-      bool running = false;
-
-      runButton.Accepting += (_, e) =>
+      if (args.Length > 0 && args[0] == "login")
       {
-        e.Handled = true;
-        if (running) return;
-        running = true;
-        runButton.Enabled = false;
+        if (!setup.PromptInteractive()) return 1;
+      }
 
-        Append("INFO", "Job started.");
+      await using ImageCache cache = new(
+        config.Cache.Directory,
+        TimeSpan.FromHours(config.Cache.TtlHours),
+        TimeSpan.FromMinutes(config.Cache.SweepMinutes));
 
-        _ = Task.Run(async () =>
-        {
-          for (int i = 1; i <= 10; i++)
-          {
-            await Task.Delay(300);
-            int step = i;
-            app.Invoke(() =>
-            {
-              progress.Fraction = step / 10f;
-              Append("DEBUG", $"Step {step}/10 done.");
-            });
-          }
+      ImgflipSession imgflip = new(new ImgFlipApi(), setup.GetCredentials);
 
-          app.Invoke(() =>
-          {
-            Append("INFO", "Job finished.");
-            running = false;
-            runButton.Enabled = true;
-            runButton.SetFocus();
-          });
-        });
-      };
+      SixelCapabilities sixel = SixelTerminal.Probe();
+      Logger.Info($"Sixel: supported={sixel.Supported} cell={sixel.CellWidth}x{sixel.CellHeight}");
 
-      Append("INFO", "Ready. Press Run or F5.");
-      runButton.SetFocus();
+      ConsoleWindowSystem ws = new(
+        new SixelDriver(new NetConsoleDriver(RenderMode.Buffer), sixel),
+        options: new ConsoleWindowSystemOptions(
+          TargetFPS: 60,
+          DirtyTrackingMode: DirtyTrackingMode.Cell,
+          ShowBottomPanel: false,
+          ShowTopPanel: false));
 
-      app.Run(window);
+      MainScreen main = new(ws, cache, imgflip, configStore, setup);
+      main.Show();
+
+      int code = await Task.Run(ws.Run);
 
       Logger.Info("Application finished.");
-      await Task.CompletedTask;
+      return code;
     }
   }
 }

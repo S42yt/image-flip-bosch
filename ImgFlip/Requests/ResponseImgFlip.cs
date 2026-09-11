@@ -1,25 +1,19 @@
-using System;
-using System.Collections.Generic;
-using System.Text;
 using System.Text.Json.Serialization;
 
-namespace image_flip_bosch.Bot.ImgFlip
+namespace image_flip_bosch.ImgFlip.Requests
 {
   public class ResponseImgFlip
   {
     [JsonPropertyName("success")]
-    public bool Success { get; set; } = false;
+    public bool Success { get; init; } = false;
 
     [JsonPropertyName("error_message")]
-    public string? ErrorMessage { get; set; } = null;
+    public string? ErrorMessage { get; init; } = null;
 
     [JsonPropertyName("data")]
-    public ResonseImgFlipData? resonseImgFlipData { get; set; } = null;
-    
+    public ResponseImgFlipData? ResponseImgFlipData { get; init; } = null;
   }
-
-
-  public class ResonseImgFlipData
+  public abstract class ResponseImgFlipData
   {
     [JsonPropertyName("url")]
     public string? Url { get; set; } = null;
@@ -31,7 +25,7 @@ namespace image_flip_bosch.Bot.ImgFlip
     public int TemplateId { get; set; } = 0;
 
     [JsonPropertyName("texts")]
-    public string[] Texts { get; set; } = new string[]{};
+    public string[] Texts { get; set; } = [];
 
     [JsonPropertyName("meme")]
     public Meme? Meme { get; set; } = null;

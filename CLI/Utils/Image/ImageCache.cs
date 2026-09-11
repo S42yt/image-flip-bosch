@@ -1,15 +1,10 @@
-using System;
 using System.Collections.Concurrent;
-using System.IO;
-using System.Net.Http;
 using System.Security.Cryptography;
 using System.Text;
-using System.Threading;
-using System.Threading.Tasks;
 
-namespace image_flip_bosch.Bot.Utils
+
+namespace image_flip_bosch.CLI.Utils.Image
 {
-
   public sealed class ImageCache : IAsyncDisposable
   {
     private readonly string _root;
@@ -19,8 +14,8 @@ namespace image_flip_bosch.Bot.Utils
     private readonly CancellationTokenSource _cts = new();
     private readonly Task _sweeper;
 
-    public TimeSpan TimeToLive { get; }
-    public TimeSpan SweepInterval { get; }
+    private TimeSpan TimeToLive { get; }
+    private TimeSpan SweepInterval { get; }
 
     public ImageCache(
       string? cacheDirectory = null,
@@ -41,8 +36,6 @@ namespace image_flip_bosch.Bot.Utils
       Logger.Info($"ImageCache using {_root} (TTL {TimeToLive}).");
       _sweeper = Task.Run(() => SweepLoopAsync(_cts.Token));
     }
-
-    /// <summary>Returns the local path for the URL, downloading it if it isn't cached yet.</summary>
     public async Task<string> GetAsync(string url, CancellationToken ct = default)
     {
       string key = KeyFor(url);
@@ -68,15 +61,13 @@ namespace image_flip_bosch.Bot.Utils
         gate.Release();
       }
     }
+    public bool Contains(string url) => TryGetPath(url) is not null;
 
-    /// <summary>True if a non-expired copy exists on disk.</summary>
-    public bool Contains(string url)
+    private string? TryGetPath(string url)
     {
       string? path = FindFile(KeyFor(url));
-      return path is not null && !IsExpired(path);
+      return path is not null && !IsExpired(path) ? path : null;
     }
-
-    /// <summary>Removes the cached copy. Returns true if something was deleted.</summary>
     public bool Remove(string url)
     {
       string? path = FindFile(KeyFor(url));
@@ -87,8 +78,7 @@ namespace image_flip_bosch.Bot.Utils
       return deleted;
     }
 
-    /// <summary>Deletes every expired file now. Returns how many were removed.</summary>
-    public int Sweep()
+    private int Sweep()
     {
       int removed = 0;
       foreach (string file in Directory.EnumerateFiles(_root))
@@ -101,8 +91,6 @@ namespace image_flip_bosch.Bot.Utils
         Logger.Info($"Cache sweep removed {removed} expired file(s).");
       return removed;
     }
-
-    /// <summary>Deletes everything in the cache.</summary>
     public void Clear()
     {
       foreach (string file in Directory.EnumerateFiles(_root))
@@ -147,7 +135,7 @@ namespace image_flip_bosch.Bot.Utils
       using PeriodicTimer timer = new(SweepInterval);
       try
       {
-        Sweep(); 
+        Sweep();
         while (await timer.WaitForNextTickAsync(ct))
           Sweep();
       }
@@ -215,8 +203,8 @@ namespace image_flip_bosch.Bot.Utils
 
     public async ValueTask DisposeAsync()
     {
-      _cts.Cancel();
-      try { await _sweeper; } catch { /* ignore */ }
+      await _cts.CancelAsync();
+      try { await _sweeper; } catch { }
       _cts.Dispose();
       if (_ownsHttp) _http.Dispose();
       foreach (SemaphoreSlim s in _locks.Values) s.Dispose();
