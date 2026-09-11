@@ -2,10 +2,6 @@
 using SharpConsoleUI.Controls;
 using SharpConsoleUI.Layout;
 using SixLabors.ImageSharp.PixelFormats;
-using System;
-using System.Collections.Generic;
-using System.Threading;
-using System.Threading.Tasks;
 
 namespace image_flip_bosch.CLI.Sixel
 {
@@ -14,10 +10,9 @@ namespace image_flip_bosch.CLI.Sixel
   {
     private static int _nextId;
 
-    private readonly object _lock = new();
+    private readonly Lock _lock = new();
     private readonly Dictionary<string, SixelFrame> _frameCache = new();
     private readonly LinkedList<string> _frameOrder = new();
-    private byte[]? _data;
     private string? _cacheKey;
     private int _version;
     private SixelFrame? _frame;
@@ -26,24 +21,24 @@ namespace image_flip_bosch.CLI.Sixel
     private SixelDriver? _driver;
     private Rgba32 _background = new(0, 0, 0);
 
-    public SixelImageControl()
+    protected SixelImageControl()
     {
       SentinelId = Interlocked.Increment(ref _nextId);
     }
 
     public int SentinelId { get; }
 
-    public int MaxColors { get; set; } = 256;
+    private int MaxColors { get; set; } = 256;
 
-    public bool Dither { get; set; } = true;
+    private bool Dither { get; set; } = true;
 
-    public int FrameCacheSize { get; set; } = 24;
+    private int FrameCacheSize { get; set; } = 24;
 
     public event EventHandler<string>? EncodeFailed;
 
     internal bool HasPendingFrame { get; private set; }
 
-    public byte[]? ImageData => _data;
+    private byte[]? ImageData { get; set; }
 
     public override int? ContentWidth => null;
 
@@ -55,11 +50,11 @@ namespace image_flip_bosch.CLI.Sixel
       return (fg.G << 8) | fg.B;
     }
 
-    public void SetImage(byte[]? data, string? cacheKey = null)
+    protected void SetImage(byte[]? data, string? cacheKey = null)
     {
       lock (_lock)
       {
-        _data = data;
+        ImageData = data;
         _cacheKey = cacheKey;
         _version++;
         _frame = null;
@@ -87,7 +82,7 @@ namespace image_flip_bosch.CLI.Sixel
       int x1 = bounds.X + bounds.Width - Margin.Right;
       int y1 = bounds.Y + bounds.Height - Margin.Bottom;
 
-      Color fg = _data is null ? defaultForeground : Sentinel;
+      Color fg = ImageData is null ? defaultForeground : Sentinel;
       _background = new Rgba32(defaultBackground.R, defaultBackground.G, defaultBackground.B);
 
       for (int y = Math.Max(y0, clipRect.Y); y < Math.Min(y1, clipRect.Y + clipRect.Height); y++)
@@ -104,7 +99,7 @@ namespace image_flip_bosch.CLI.Sixel
 
       lock (_lock)
       {
-        data = _data;
+        data = ImageData;
         if (data is null) return null;
 
         key = (cols, rows, cellWidth, cellHeight, _version);
@@ -170,8 +165,7 @@ namespace image_flip_bosch.CLI.Sixel
 
     private void Remember(string id, SixelFrame frame)
     {
-      if (_frameCache.ContainsKey(id)) return;
-      _frameCache[id] = frame;
+      if (!_frameCache.TryAdd(id, frame)) return;
       _frameOrder.AddLast(id);
       while (_frameOrder.Count > Math.Max(1, FrameCacheSize))
       {

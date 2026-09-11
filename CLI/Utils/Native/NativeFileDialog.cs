@@ -1,10 +1,7 @@
-using System;
 using System.Diagnostics;
-using System.IO;
 using System.Runtime.InteropServices;
-using System.Threading.Tasks;
 
-namespace image_flip_bosch.CLI.Utils
+namespace image_flip_bosch.CLI.Utils.Native
 {
 
   public static class NativeFileDialog

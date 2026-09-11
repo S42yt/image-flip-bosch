@@ -1,12 +1,10 @@
-namespace image_flip_bosch.ImgFlip
-{
-  using System;
-  using System.IO;
-  using System.Runtime.Versioning;
-  using System.Security.Cryptography;
-  using System.Text;
-  using System.Text.Json;
+using System.Runtime.Versioning;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
 
+namespace image_flip_bosch.ImgFlip.Auth
+{
   public sealed record ImgflipCredentials(string Username, string Password);
 
   public sealed class ImgflipCredentialStore

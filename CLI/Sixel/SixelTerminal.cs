@@ -1,5 +1,4 @@
-﻿using System;
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text;
 
@@ -102,7 +101,7 @@ namespace image_flip_bosch.CLI.Sixel
     private static string ReadResponse(int timeoutMs)
     {
       StringBuilder sb = new();
-      Stopwatch sw = Stopwatch.StartNew();
+      var sw = Stopwatch.StartNew();
       bool sawDa = false;
       bool sawCell = false;
 

@@ -1,13 +1,9 @@
 using image_flip_bosch.ImgFlip;
+using image_flip_bosch.ImgFlip.Requests;
 using SharpConsoleUI;
 using SharpConsoleUI.Builders;
 using SharpConsoleUI.Controls;
 using SharpConsoleUI.Parsing;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-
 
 namespace image_flip_bosch.CLI.TUI
 {
@@ -25,10 +21,12 @@ namespace image_flip_bosch.CLI.TUI
       _ws = ws;
 
       int count = Math.Clamp(meme.BoxCount, 1, 20);
-      List<IWindowControl> controls = new()
-      {
-        Controls.Markup($"[bold]{MarkupParser.Escape(meme.Name)}[/] [dim]{count} text box{(count == 1 ? string.Empty : "es")}[/]").Build(),
-      };
+      List<IWindowControl> controls =
+      [
+        Controls.Markup(
+            $"[bold]{MarkupParser.Escape(meme.Name)}[/] [dim]{count} text box{(count == 1 ? string.Empty : "es")}[/]")
+          .Build()
+      ];
 
       for (int i = 0; i < count; i++)
       {
@@ -48,7 +46,7 @@ namespace image_flip_bosch.CLI.TUI
 
       controls.Add(Controls.HorizontalGrid()
         .Column(c => c.Add(Controls.Button("Create").OnClick((_, _) => Submit()).Build()))
-        .Column(c => c.Add(Controls.Button("Cancel").OnClick((_, _) => _window.Close()).Build()))
+        .Column(c => c.Add(Controls.Button("Cancel").OnClick((_, _) => _window?.Close()).Build()))
         .Build());
 
       _window = new WindowBuilder(ws)

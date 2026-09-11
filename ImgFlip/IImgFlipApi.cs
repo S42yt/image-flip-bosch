@@ -1,3 +1,6 @@
+using image_flip_bosch.ImgFlip.Enum;
+using image_flip_bosch.ImgFlip.Requests;
+
 namespace image_flip_bosch.ImgFlip
 {
   internal interface IImgFlipApi

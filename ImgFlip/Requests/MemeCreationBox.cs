@@ -1,11 +1,11 @@
 using System.Text.Json.Serialization;
 
-namespace image_flip_bosch.ImgFlip
+namespace image_flip_bosch.ImgFlip.Requests
 {
   public class MemeCreationBox
   {
     [JsonPropertyName("text")]
-    public string Text { get; set; } = "";
+    public string Text { get; init; } = "";
 
     [JsonPropertyName("x")]
     public int? X { get; set; }

@@ -2,7 +2,6 @@
 using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
 using SixLabors.ImageSharp.Processing.Processors.Quantization;
-using System;
 using System.Text;
 
 namespace image_flip_bosch.CLI.Sixel
@@ -25,7 +24,7 @@ namespace image_flip_bosch.CLI.Sixel
       int canvasW = Math.Max(1, cols * cellWidth);
       int canvasH = Math.Max(1, rows * cellHeight);
 
-      using Image<Rgba32> source = Image.Load<Rgba32>(imageData);
+      using var source = Image.Load<Rgba32>(imageData);
 
       double scale = Math.Min(1.0, Math.Min((double)canvasW / source.Width, (double)canvasH / source.Height));
       int targetW = Math.Max(1, (int)Math.Round(source.Width * scale));
@@ -43,7 +42,7 @@ namespace image_flip_bosch.CLI.Sixel
       return new SixelFrame(data, cols, rows, canvasW, canvasH);
     }
 
-    public static string Encode(Image<Rgba32> image, int maxColors = 256, bool dither = true, bool opaque = false)
+    private static string Encode(Image<Rgba32> image, int maxColors = 256, bool dither = true, bool opaque = false)
     {
       QuantizerOptions options = new()
       {
@@ -124,7 +123,7 @@ namespace image_flip_bosch.CLI.Sixel
         sb.Append('-');
       }
 
-      sb.Append("\x1b\\");
+      sb.Append("\e" + "\\");
       return sb.ToString();
     }
 

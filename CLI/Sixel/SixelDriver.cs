@@ -2,10 +2,6 @@
 using SharpConsoleUI.Core;
 using SharpConsoleUI.Drivers;
 using SharpConsoleUI.Layout;
-using System;
-using System.Collections.Generic;
-using System.Drawing;
-using System.IO;
 using System.Text;
 using Size = SharpConsoleUI.Helpers.Size;
 
@@ -23,8 +19,8 @@ namespace image_flip_bosch.CLI.Sixel
     private readonly IConsoleDriver _inner;
     private readonly Dictionary<int, Entry> _entries = new();
     private readonly Stream _stdout = Console.OpenStandardOutput();
-    private readonly object _lock = new();
-    private int[] _map = Array.Empty<int>();
+    private readonly Lock _lock = new();
+    private int[] _map = [];
     private int _w;
     private int _h;
     private bool _forceAll;
@@ -116,7 +112,7 @@ namespace image_flip_bosch.CLI.Sixel
     public void Initialize(ConsoleWindowSystem windowSystem) => _inner.Initialize(windowSystem);
     public int GetDirtyCharacterCount() => _inner.GetDirtyCharacterCount();
 
-    public void SetNarrowCell(int x, int y, char character, SharpConsoleUI.Color fg, SharpConsoleUI.Color bg)
+    public void SetNarrowCell(int x, int y, char character, Color fg, Color bg)
     {
       lock (_lock)
       {
@@ -126,7 +122,7 @@ namespace image_flip_bosch.CLI.Sixel
       _inner.SetNarrowCell(x, y, character,  fg, bg);
     }
 
-    public void FillCells(int x, int y, int width, char character, SharpConsoleUI.Color fg, SharpConsoleUI.Color bg)
+    public void FillCells(int x, int y, int width, char character, Color fg, Color bg)
     {
       int id = SixelImageControl.SentinelToId(fg, character);
       lock (_lock)
@@ -137,7 +133,7 @@ namespace image_flip_bosch.CLI.Sixel
       _inner.FillCells(x, y, width, character, fg, bg);
     }
 
-    public void WriteBufferRegion(int destX, int destY, CharacterBuffer source, int srcX, int srcY, int width, SharpConsoleUI.Color fallbackBg)
+    public void WriteBufferRegion(int destX, int destY, CharacterBuffer source, int srcX, int srcY, int width, Color fallbackBg)
     {
       if (_entries.Count > 0)
       {
@@ -186,9 +182,8 @@ namespace image_flip_bosch.CLI.Sixel
 
       lock (_lock)
       {
-        foreach (Entry entry in _entries.Values)
+        foreach (Entry entry in _entries.Values.Where(entry => _forceAll || entry is not { Changed: false, Control.HasPendingFrame: false }))
         {
-          if (!_forceAll && !entry.Changed && !entry.Control.HasPendingFrame) continue;
           entry.Changed = false;
 
           int id = entry.Control.SentinelId;
@@ -214,6 +209,7 @@ namespace image_flip_bosch.CLI.Sixel
 
           ready.Add((entry, minX, minY, w, h));
         }
+
         _forceAll = false;
       }
 

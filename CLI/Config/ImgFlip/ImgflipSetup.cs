@@ -1,25 +1,18 @@
 using image_flip_bosch.ImgFlip;
-using System;
-using System.IO;
 using System.Text;
+using image_flip_bosch.ImgFlip.Auth;
 
 namespace image_flip_bosch.CLI.Config.ImgFlip
 {
 
-  public sealed class ImgflipSetup
+  public sealed class ImgflipSetup(ConfigStore<AppConfig>? config = null, ImgflipCredentialStore? credentials = null)
   {
-    private readonly ConfigStore<AppConfig> _config;
-    private readonly ImgflipCredentialStore _credentials;
+    private readonly ConfigStore<AppConfig> _config = config ?? new ConfigStore<AppConfig>();
+    private readonly ImgflipCredentialStore _credentials = credentials ?? new ImgflipCredentialStore();
 
-    public ImgflipSetup(ConfigStore<AppConfig>? config = null, ImgflipCredentialStore? credentials = null)
-    {
-      _config = config ?? new ConfigStore<AppConfig>();
-      _credentials = credentials ?? new ImgflipCredentialStore();
-    }
+    public bool IsConfigured => _config.Load().ImgFlip.HasUsername && _credentials.Exists;
 
-    public bool IsConfigured => _config.Load().Imgflip.HasUsername && _credentials.Exists;
-
-    public string? Username => _config.Load().Imgflip.Username;
+    public string? Username => _config.Load().ImgFlip.Username;
 
     public bool IsProtectedStorage => _credentials.IsProtectedStorage;
 
@@ -31,13 +24,13 @@ namespace image_flip_bosch.CLI.Config.ImgFlip
         throw new ArgumentException("Password is required.", nameof(password));
 
       _credentials.Save(new ImgflipCredentials(username.Trim(), password));
-      _config.Update(c => c.Imgflip.Username = username.Trim());
+      _config.Update(c => c.ImgFlip.Username = username.Trim());
     }
 
     public bool Clear()
     {
       bool removed = _credentials.Remove();
-      _config.Update(c => c.Imgflip.Username = null);
+      _config.Update(c => c.ImgFlip.Username = null);
       return removed;
     }
 
@@ -46,7 +39,7 @@ namespace image_flip_bosch.CLI.Config.ImgFlip
       ImgflipCredentials? stored = _credentials.Load();
       if (stored is null) return null;
 
-      string? configured = _config.Load().Imgflip.Username;
+      string? configured = _config.Load().ImgFlip.Username;
       return string.IsNullOrWhiteSpace(configured) || configured == stored.Username
         ? stored
         : stored with { Username = configured };
@@ -55,7 +48,7 @@ namespace image_flip_bosch.CLI.Config.ImgFlip
     public ImgflipCredentials RequireCredentials() =>
       GetCredentials() ?? throw new InvalidOperationException("Imgflip credentials are not configured. Run setup first.");
 
-    public ImgflipConfig Options => _config.Load().Imgflip;
+    public ImgFlipConfig Options => _config.Load().ImgFlip;
 
     public bool PromptInteractive(TextReader? input = null, TextWriter? output = null)
     {

@@ -1,7 +1,7 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 
-namespace image_flip_bosch.CLI.Utils
+namespace image_flip_bosch.CLI.Utils.Image
 {
 
   public static class ImageClipboard
@@ -63,7 +63,7 @@ namespace image_flip_bosch.CLI.Utils
           RedirectStandardOutput = true,
           RedirectStandardError = true,
         };
-        using Process? proc = Process.Start(psi);
+        using var proc = Process.Start(psi);
         if (proc is null) return false;
 
         if (stdinFile is not null)

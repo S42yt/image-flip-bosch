@@ -1,14 +1,9 @@
-using System;
 using System.Collections.Concurrent;
-using System.IO;
-using System.Net.Http;
 using System.Security.Cryptography;
 using System.Text;
-using System.Threading;
-using System.Threading.Tasks;
 
 
-namespace image_flip_bosch.CLI.Utils
+namespace image_flip_bosch.CLI.Utils.Image
 {
   public sealed class ImageCache : IAsyncDisposable
   {
@@ -19,8 +14,8 @@ namespace image_flip_bosch.CLI.Utils
     private readonly CancellationTokenSource _cts = new();
     private readonly Task _sweeper;
 
-    public TimeSpan TimeToLive { get; }
-    public TimeSpan SweepInterval { get; }
+    private TimeSpan TimeToLive { get; }
+    private TimeSpan SweepInterval { get; }
 
     public ImageCache(
       string? cacheDirectory = null,
@@ -68,7 +63,7 @@ namespace image_flip_bosch.CLI.Utils
     }
     public bool Contains(string url) => TryGetPath(url) is not null;
 
-    public string? TryGetPath(string url)
+    private string? TryGetPath(string url)
     {
       string? path = FindFile(KeyFor(url));
       return path is not null && !IsExpired(path) ? path : null;
@@ -82,7 +77,8 @@ namespace image_flip_bosch.CLI.Utils
       if (deleted) Logger.Info($"Removed from cache: {url}");
       return deleted;
     }
-    public int Sweep()
+
+    private int Sweep()
     {
       int removed = 0;
       foreach (string file in Directory.EnumerateFiles(_root))
@@ -207,7 +203,7 @@ namespace image_flip_bosch.CLI.Utils
 
     public async ValueTask DisposeAsync()
     {
-      _cts.Cancel();
+      await _cts.CancelAsync();
       try { await _sweeper; } catch { }
       _cts.Dispose();
       if (_ownsHttp) _http.Dispose();

@@ -1,8 +1,8 @@
 using System.Text.Json.Serialization;
 
-namespace image_flip_bosch.ImgFlip
+namespace image_flip_bosch.ImgFlip.Requests
 {
-  public class Meme
+  public abstract class Meme
   {
     [JsonPropertyName("id")]
     public string Id { get; set; } = "";

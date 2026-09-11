@@ -9,9 +9,9 @@ namespace image_flip_bosch.CLI.Config
 
   public static class ConfigPaths
   {
-    public const string AppName = "image_flip_bosch";
+    private const string AppName = "image_flip_bosch";
 
-    public static string AppDataDirectory =>
+    private static string AppDataDirectory =>
       Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData, Environment.SpecialFolderOption.Create),
         AppName);
@@ -19,9 +19,10 @@ namespace image_flip_bosch.CLI.Config
     public static string File(string name) => Path.Combine(AppDataDirectory, name);
   }
 
-  public sealed class ConfigStore<T> where T : class, new()
+  public sealed class ConfigStore<T>(string? path = null)
+    where T : class, new()
   {
-    private static readonly JsonSerializerOptions Options = new()
+    private readonly JsonSerializerOptions _options = new()
     {
       WriteIndented = true,
       PropertyNameCaseInsensitive = true,
@@ -30,15 +31,10 @@ namespace image_flip_bosch.CLI.Config
       AllowTrailingCommas = true,
     };
 
-    private readonly object _lock = new();
+    private readonly Lock _lock = new();
     private T? _cached;
 
-    public ConfigStore(string? path = null)
-    {
-      Path = path ?? ConfigPaths.File(typeof(T).Name.Replace("Config", string.Empty).ToLowerInvariant() + ".json");
-    }
-
-    public string Path { get; }
+    private string Path { get; } = path ?? ConfigPaths.File(typeof(T).Name.Replace("Config", string.Empty).ToLowerInvariant() + ".json");
 
     public bool Exists => File.Exists(Path);
 
@@ -59,7 +55,7 @@ namespace image_flip_bosch.CLI.Config
         try
         {
           string json = File.ReadAllText(Path, Encoding.UTF8);
-          _cached = JsonSerializer.Deserialize<T>(json, Options) ?? new T();
+          _cached = JsonSerializer.Deserialize<T>(json, _options) ?? new T();
         }
         catch (JsonException)
         {
@@ -71,12 +67,12 @@ namespace image_flip_bosch.CLI.Config
       }
     }
 
-    public void Save(T config)
+    private void Save(T config)
     {
       lock (_lock)
       {
         Directory.CreateDirectory(System.IO.Path.GetDirectoryName(Path)!);
-        string json = JsonSerializer.Serialize(config, Options);
+        string json = JsonSerializer.Serialize(config, _options);
         string tmp = Path + ".tmp";
         File.WriteAllText(tmp, json, Encoding.UTF8);
         File.Move(tmp, Path, overwrite: true);

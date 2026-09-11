@@ -1,10 +1,4 @@
-using System;
-using System.IO;
-using System.Net.Http;
-using System.Threading;
-using System.Threading.Tasks;
-
-namespace image_flip_bosch.CLI.Utils
+namespace image_flip_bosch.CLI.Utils.Native
 {
   
   public static class FileDownloader
@@ -43,7 +37,10 @@ namespace image_flip_bosch.CLI.Utils
       }
       catch
       {
-        try { File.Delete(tempPath); } catch {}
+        try { File.Delete(tempPath); }
+        catch
+        //warum heult Rider eig wenn ich das nicht hinschreibe VALLAH macht kein sinn, egal
+        { /*ignore*/ }
         throw;
       }
 

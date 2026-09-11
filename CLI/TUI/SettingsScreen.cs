@@ -6,7 +6,6 @@ namespace image_flip_bosch.CLI.TUI
   using SharpConsoleUI.Builders;
   using SharpConsoleUI.Controls;
   using SharpConsoleUI.Core;
-  using SharpConsoleUI.Layout;
   using System;
 
   internal sealed class SettingsScreen
@@ -30,12 +29,12 @@ namespace image_flip_bosch.CLI.TUI
       _setup = setup;
       _onSaved = onSaved;
 
-      ImgflipConfig current = configStore.Load().Imgflip;
+      ImgFlipConfig current = configStore.Load().ImgFlip;
 
       _username = Controls.Prompt(" Username ")
         .WithPlaceholder("imgflip account")
         .UnfocusOnEnter(false)
-        .OnEntered((_, _) => _window.FocusControl(_password))
+        .OnEntered((_, _) => _window?.FocusControl(_password))
         .Build();
       _username.Input = current.Username ?? string.Empty;
 
@@ -43,7 +42,7 @@ namespace image_flip_bosch.CLI.TUI
         .WithPlaceholder(setup.IsConfigured ? "unchanged" : "optional")
         .WithMaskCharacter('*')
         .UnfocusOnEnter(false)
-        .OnEntered((_, _) => _window.FocusControl(_maxFontSize))
+        .OnEntered((_, _) => _window?.FocusControl(_maxFontSize))
         .Build();
 
       _maxFontSize = Controls.Prompt(" Max font size ")
@@ -62,7 +61,7 @@ namespace image_flip_bosch.CLI.TUI
       HorizontalGridControl buttons = Controls.HorizontalGrid()
         .Column(c => c.Add(Controls.Button("Save").OnClick((_, _) => Save()).Build()))
         .Column(c => c.Add(Controls.Button("Remove credentials").OnClick((_, _) => RemoveCredentials()).Build()))
-        .Column(c => c.Add(Controls.Button("Close").OnClick((_, _) => _window.Close()).Build()))
+        .Column(c => c.Add(Controls.Button("Close").OnClick((_, _) => _window?.Close()).Build()))
         .Build();
 
       _window = new WindowBuilder(ws)
@@ -118,8 +117,8 @@ namespace image_flip_bosch.CLI.TUI
 
       _configStore.Update(c =>
       {
-        c.Imgflip.MaxFontSize = maxFont;
-        c.Imgflip.NoWatermark = _noWatermark.Checked;
+        c.ImgFlip.MaxFontSize = maxFont;
+        c.ImgFlip.NoWatermark = _noWatermark.Checked;
       });
 
       if (username.Length > 0 && password.Length > 0)

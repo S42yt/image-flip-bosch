@@ -1,7 +1,10 @@
 using image_flip_bosch.CLI.Config;
 using image_flip_bosch.CLI.Config.ImgFlip;
-using image_flip_bosch.CLI.Utils;
+using image_flip_bosch.CLI.Utils.Image;
+using image_flip_bosch.CLI.Utils.Native;
 using image_flip_bosch.ImgFlip;
+using image_flip_bosch.ImgFlip.Auth;
+using image_flip_bosch.ImgFlip.Requests;
 using SharpConsoleUI;
 using SharpConsoleUI.Builders;
 using SharpConsoleUI.Controls;
@@ -9,12 +12,6 @@ using SharpConsoleUI.Core;
 using SharpConsoleUI.Helpers;
 using SharpConsoleUI.Layout;
 using SharpConsoleUI.Parsing;
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
 
 namespace image_flip_bosch.CLI.TUI
 {
@@ -34,7 +31,7 @@ namespace image_flip_bosch.CLI.TUI
     private readonly MarkupControl _log;
     private readonly Window _window;
 
-    private Meme[] _allMemes = Array.Empty<Meme>();
+    private Meme[] _allMemes = [];
     private Meme? _selected;
     private string? _resultUrl;
     private string[]? _lastCaptions;
@@ -89,7 +86,7 @@ namespace image_flip_bosch.CLI.TUI
       side.Place(logPanel, 1, 0);
 
       GridControl content = Controls.Grid()
-        .Columns(GridLength.Star(1), GridLength.Star(2), GridLength.Star(1))
+        .Columns(GridLength.Star(), GridLength.Star(2), GridLength.Star())
         .Rows(GridLength.Star())
         .ColumnGap(1)
         .WithAlignment(HorizontalAlignment.Stretch)
@@ -104,9 +101,9 @@ namespace image_flip_bosch.CLI.TUI
 
       StatusBarControl statusBar = Controls.StatusBar()
         .AddLeft("F5", "Caption", () => _ = OpenCaptionsAsync())
-        .AddLeft("F6", "Copy URL", () => CopyResultUrl())
+        .AddLeft("F6", "Copy URL", CopyResultUrl)
         .AddLeft("F7", "Save image", () => _ = SaveCurrentAsync())
-        .AddLeft("F8", "Settings", () => OpenSettings())
+        .AddLeft("F8", "Settings", OpenSettings)
         .AddLeft("F9", "Reload", () => _ = LoadTemplatesAsync())
         .AddRight("F10", "Quit", () => _ws.Shutdown())
         .StickyBottom()
@@ -129,7 +126,7 @@ namespace image_flip_bosch.CLI.TUI
     public void Show()
     {
       _ws.RegisterGlobalShortcut(ConsoleModifiers.Control, ConsoleKey.S, () => _ = SaveCurrentAsync());
-      _ws.RegisterGlobalShortcut(ConsoleModifiers.Control, ConsoleKey.O, () => OpenSettings());
+      _ws.RegisterGlobalShortcut(ConsoleModifiers.Control, ConsoleKey.O, OpenSettings);
       _ws.RegisterGlobalShortcut(ConsoleModifiers.Control, ConsoleKey.R, () => _ = LoadTemplatesAsync());
       _ws.RegisterGlobalShortcut(ConsoleModifiers.Control, ConsoleKey.X, () => _ws.Shutdown());
 
@@ -193,9 +190,11 @@ namespace image_flip_bosch.CLI.TUI
         ? _allMemes
         : _allMemes.Where(m => m.Name.Contains(needle, StringComparison.OrdinalIgnoreCase));
 
-      List<ListItem> items = visible
-        .Select(meme => new ListItem($"{MarkupParser.Escape(meme.Name)} [dim]({meme.BoxCount})[/]") { Tag = meme })
-        .ToList();
+      List<ListItem> items =
+      [
+        .. visible
+          .Select(meme => new ListItem($"{MarkupParser.Escape(meme.Name)} [dim]({meme.BoxCount})[/]") { Tag = meme })
+      ];
 
       _templates.Items = items;
       if (items.Count > 0)
@@ -261,8 +260,8 @@ namespace image_flip_bosch.CLI.TUI
 
       try
       {
-        ImgflipConfig options = _configStore.Load().Imgflip;
-        _previewCts?.Cancel();
+        ImgFlipConfig options = _configStore.Load().ImgFlip;
+        await _previewCts?.CancelAsync()!;
 
         string url;
         if (texts.Length <= 2)
@@ -276,9 +275,11 @@ namespace image_flip_bosch.CLI.TUI
         }
         else
         {
-          MemeCreationBox[] boxes = texts
-            .Select(t => new MemeCreationBox { Text = t })
-            .ToArray();
+          MemeCreationBox[] boxes =
+          [
+            .. texts
+              .Select(t => new MemeCreationBox { Text = t })
+          ];
           url = await _imgflip.CaptionImage(
             meme.Id,
             string.Empty,

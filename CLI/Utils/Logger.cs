@@ -6,7 +6,7 @@ namespace image_flip_bosch.CLI.Utils
 
     public static Level MinLevel { get; set; } = Level.Debug;
 
-    private static readonly object Sync = new();
+    private static readonly Lock Sync = new();
 
     public static void Debug(string message) => Write(Level.Debug, message);
     public static void Info(string message) => Write(Level.Info, message);
