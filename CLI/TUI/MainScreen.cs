@@ -1,5 +1,11 @@
 using image_flip_bosch.CLI.Config;
 using image_flip_bosch.CLI.Config.ImgFlip;
+using image_flip_bosch.CLI.Utils;
+using image_flip_bosch.CLI.Utils.Image;
+using image_flip_bosch.CLI.Utils.Native;
+using image_flip_bosch.ImgFlip.Auth;
+using image_flip_bosch.ImgFlip.Enum;
+using image_flip_bosch.ImgFlip.Requests;
 using SharpConsoleUI;
 using SharpConsoleUI.Builders;
 using SharpConsoleUI.Controls;
@@ -7,48 +13,72 @@ using SharpConsoleUI.Core;
 using SharpConsoleUI.Helpers;
 using SharpConsoleUI.Layout;
 using SharpConsoleUI.Parsing;
-using image_flip_bosch.CLI.Utils.Image;
-using image_flip_bosch.CLI.Utils.Native;
-using image_flip_bosch.ImgFlip.Auth;
-using image_flip_bosch.ImgFlip.Requests;
+using SharpConsoleUI.Themes;
 
 namespace image_flip_bosch.CLI.TUI
 {
 
+  internal sealed record AppOptions(bool ShowDebugScreen);
+
   internal sealed class MainScreen
   {
+
     private readonly ConsoleWindowSystem _ws;
     private readonly ImageCache _cache;
     private readonly ImgflipSession _imgflip;
     private readonly ConfigStore<AppConfig> _configStore;
     private readonly ImgflipSetup _setup;
+    private readonly AppOptions _options;
 
+    private readonly MarkupControl _header;
     private readonly PromptControl _filter;
     private readonly ListControl _templates;
     private readonly ImagePreview _preview;
-    private readonly MarkupControl _details;
-    private readonly MarkupControl _log;
+    private readonly MarkupControl _message;
+    private readonly MarkupControl _shortcuts;
+    private readonly MarkupControl? _debugLog;
     private readonly Window _window;
+    private NanoChrome _chrome;
+    private string _lastMessage = string.Empty;
+    private NotificationSeverity? _lastSeverity;
 
     private Meme[] _allMemes = Array.Empty<Meme>();
+    private readonly HashSet<string> _knownIds = new();
+    private readonly HashSet<string> _searchedQueries = new(StringComparer.OrdinalIgnoreCase);
+    private readonly List<string> _debugLines = new();
+    private const int MaxDebugLines = 200;
+    private bool _loadingMore;
+    private bool _searchUnavailable;
     private Meme? _selected;
     private string? _resultUrl;
-    private string[]? _lastCaptions;
+    private MemeCreationBox[]? _lastCaptions;
     private bool _busy;
     private CancellationTokenSource? _previewCts;
+    private CancellationTokenSource? _messageCts;
+    private CancellationTokenSource? _searchCts;
 
-    public MainScreen(ConsoleWindowSystem ws, ImageCache cache, ImgflipSession imgflip, ConfigStore<AppConfig> configStore, ImgflipSetup setup)
+    public MainScreen(ConsoleWindowSystem ws, ImageCache cache, ImgflipSession imgflip, ConfigStore<AppConfig> configStore, ImgflipSetup setup, AppOptions options)
     {
       _ws = ws;
       _cache = cache;
       _imgflip = imgflip;
       _configStore = configStore;
       _setup = setup;
+      _options = options;
+      _chrome = NanoChrome.From(ws.Theme);
 
-      _filter = Controls.Prompt(" Filter ")
-        .WithPlaceholder("type to filter templates")
+      _header = Controls.Markup(HeaderText(null))
+        .WithAlignment(HorizontalAlignment.Stretch)
+        .WithBackgroundColor(_chrome.HeaderBackground)
+        .StickyTop()
+        .Build();
+
+      _filter = Controls.Prompt(" Filter: ")
+        .WithPlaceholder("type to filter or search templates")
         .UnfocusOnEnter(false)
-        .OnInputChanged((_, text) => ApplyFilter(text))
+        .OnInputChanged((_, text) => { ApplyFilter(text); ScheduleSearch(text); })
+        .OnEntered((_, _) => _window.FocusControl(_templates))
+        .StickyTop()
         .Build();
 
       _templates = Controls.List("Templates")
@@ -63,164 +93,313 @@ namespace image_flip_bosch.CLI.TUI
         HorizontalAlignment = HorizontalAlignment.Stretch,
         VerticalAlignment = VerticalAlignment.Fill,
       };
-      _preview.LoadFailed += (_, msg) => Log($"[red]Preview failed:[/] {MarkupParser.Escape(msg)}");
+      _preview.LoadFailed += (_, msg) => Say($"Preview failed: {msg}", NotificationSeverity.Danger);
 
-      _details = Controls.Markup("[dim]No template selected.[/]").Build();
-      _log = Controls.Markup("[dim]Loading templates...[/]").Build();
-
-      ScrollablePanelControl logPanel = Controls.ScrollablePanel()
-        .AddControl(_log)
-        .WithAutoScroll()
-        .WithVerticalAlignment(VerticalAlignment.Fill)
-        .Build();
-
-      GridControl side = Controls.Grid()
-        .Columns(GridLength.Star())
-        .Rows(GridLength.Auto(), GridLength.Star())
-        .RowGap(1)
-        .WithAlignment(HorizontalAlignment.Stretch)
-        .WithVerticalAlignment(VerticalAlignment.Fill)
-        .Build();
-      side.Place(_details, 0, 0);
-      side.Place(logPanel, 1, 0);
-
-      GridControl content = Controls.Grid()
-        .Columns(GridLength.Star(1), GridLength.Star(2), GridLength.Star(1))
+      GridBuilder grid = Controls.Grid()
         .Rows(GridLength.Star())
         .ColumnGap(1)
         .WithAlignment(HorizontalAlignment.Stretch)
-        .WithVerticalAlignment(VerticalAlignment.Fill)
-        .Build();
-      content.Place(_templates, 0, 0);
-      content.Place(_preview, 0, 1);
-      content.Place(side, 0, 2);
-      content.Cell(0, 0).Border = BorderStyle.Rounded;
-      content.Cell(0, 1).Border = BorderStyle.Rounded;
-      content.Cell(0, 2).Border = BorderStyle.Rounded;
+        .WithVerticalAlignment(VerticalAlignment.Fill);
 
-      StatusBarControl statusBar = Controls.StatusBar()
-        .AddLeft("F5", "Caption", () => _ = OpenCaptionsAsync())
-        .AddLeft("F6", "Copy URL", () => CopyResultUrl())
-        .AddLeft("F7", "Save image", () => _ = SaveCurrentAsync())
-        .AddLeft("F8", "Settings", () => OpenSettings())
-        .AddLeft("F9", "Reload", () => _ = LoadTemplatesAsync())
-        .AddLeft("F3", "Theme", () => CycleTheme(false))
-        .AddRight("F10", "Quit", () => _ws.Shutdown())
+      GridControl content;
+      if (options.ShowDebugScreen)
+      {
+        _debugLog = Controls.Markup("[dim]debug log[/]").Build();
+        ScrollablePanelControl logPanel = Controls.ScrollablePanel()
+          .AddControl(_debugLog)
+          .WithAutoScroll()
+          .WithVerticalAlignment(VerticalAlignment.Fill)
+          .Build();
+
+        content = grid.Columns(GridLength.Star(1), GridLength.Star(2), GridLength.Star(1)).Build();
+        content.Place(_templates, 0, 0);
+        content.Place(_preview, 0, 1);
+        content.Place(logPanel, 0, 2);
+      }
+      else
+      {
+        content = grid.Columns(GridLength.Star(1), GridLength.Star(2)).Build();
+        content.Place(_templates, 0, 0);
+        content.Place(_preview, 0, 1);
+      }
+
+      _message = Controls.Markup(string.Empty)
+        .WithAlignment(HorizontalAlignment.Center)
         .StickyBottom()
         .Build();
 
+      _shortcuts = Controls.Markup(string.Empty)
+        .WithAlignment(HorizontalAlignment.Stretch)
+        .StickyBottom()
+        .Build();
+      _shortcuts.SetContent(ShortcutRows());
+
       _window = new WindowBuilder(ws)
-        .WithTitle("image_flip_bosch")
-        .HideTitleButtons()
+        .Frameless()
         .Resizable(false)
         .Movable(false)
         .Closable(false)
         .Minimizable(false)
         .Maximizable(false)
-        .AddControls(_filter, content, statusBar)
+        .AddControls(_header, _filter, content, _message, _shortcuts)
         .Build();
 
       _window.PreviewKeyPressed += OnKey;
+      ws.ThemeStateService.ThemeChanged += (_, e) => ApplyChrome(e.NewTheme);
+    }
+
+    private void ApplyChrome(ITheme theme)
+    {
+      _chrome = NanoChrome.From(theme);
+      _ws.InvokeAsync(() =>
+      {
+        _header.BackgroundColor = _chrome.HeaderBackground;
+        _header.SetContent([HeaderText(_selected)]);
+        _shortcuts.SetContent(ShortcutRows());
+        if (_lastMessage.Length > 0)
+          _message.SetContent([_chrome.Status(_lastMessage, _lastSeverity)]);
+      });
     }
 
     public void Show()
     {
       _ws.RegisterGlobalShortcut(ConsoleModifiers.Control, ConsoleKey.S, () => _ = SaveCurrentAsync());
-      _ws.RegisterGlobalShortcut(ConsoleModifiers.Control, ConsoleKey.O, () => OpenSettings());
+      _ws.RegisterGlobalShortcut(ConsoleModifiers.Control, ConsoleKey.O, OpenSettings);
       _ws.RegisterGlobalShortcut(ConsoleModifiers.Control, ConsoleKey.R, () => _ = LoadTemplatesAsync());
       _ws.RegisterGlobalShortcut(ConsoleModifiers.Control, ConsoleKey.X, () => _ws.Shutdown());
 
       _ws.AddWindow(_window);
       _window.State = WindowState.Maximized;
       _window.FocusControl(_filter);
-      if (!_setup.IsConfigured)
-        Log("[dim]No Imgflip login. Memes get the imgflip watermark; add an account under ^O to change settings.[/]");
+      Say(_setup.IsConfigured ? $"Logged in as {_setup.Username}" : "No Imgflip login, memes get the imgflip watermark");
       _ = LoadTemplatesAsync();
     }
+
+    private List<string> ShortcutRows() =>
+    [
+      _chrome.Key("F5", "Caption") + _chrome.Key("F6", "Copy URL") + _chrome.Key("F7", "Save") + _chrome.Key("F8", "Settings"),
+      _chrome.Key("F9", "Reload") + _chrome.Key("F3", "Theme") + _chrome.Key("F1", "Help") + _chrome.Key("F4", "Exit"),
+    ];
+
+    private string HeaderText(Meme? meme)
+    {
+      int width = Math.Max(20, _ws.ConsoleDriver.ScreenSize.Width);
+      const string left = " ";
+      string center = meme is null ? "New Meme" : $"{meme.Name}  ({meme.BoxCount} boxes, {meme.Width}x{meme.Height})";
+      string right = _resultUrl is null ? string.Empty : "Created  ";
+
+      int pad = Math.Max(1, (width - left.Length - center.Length) / 2 - 1);
+      string line = left + new string(' ', pad) + center;
+      if (line.Length + right.Length < width)
+        line += new string(' ', width - line.Length - right.Length) + right;
+      else if (line.Length < width)
+        line += new string(' ', width - line.Length);
+
+      return _chrome.Header(line);
+    }
+
+    private void RefreshHeader() => _ws.InvokeAsync(() => _header.SetContent([HeaderText(_selected)]));
 
     private void OnKey(object? sender, KeyPressedEventArgs e)
     {
       bool ctrl = e.KeyInfo.Modifiers.HasFlag(ConsoleModifiers.Control);
       switch (e.KeyInfo.Key)
       {
+        case ConsoleKey.F1: ShowHelp(); e.Handled = true; break;
+        case ConsoleKey.F3: CycleTheme(e.KeyInfo.Modifiers.HasFlag(ConsoleModifiers.Shift)); e.Handled = true; break;
+        case ConsoleKey.F4: _ws.Shutdown(); e.Handled = true; break;
         case ConsoleKey.F5: _ = OpenCaptionsAsync(); e.Handled = true; break;
         case ConsoleKey.F6: CopyResultUrl(); e.Handled = true; break;
         case ConsoleKey.F7: _ = SaveCurrentAsync(); e.Handled = true; break;
         case ConsoleKey.F8: OpenSettings(); e.Handled = true; break;
         case ConsoleKey.F9: _ = LoadTemplatesAsync(); e.Handled = true; break;
-        case ConsoleKey.F3: CycleTheme(e.KeyInfo.Modifiers.HasFlag(ConsoleModifiers.Shift)); e.Handled = true; break;
-        case ConsoleKey.F10: _ws.Shutdown(); e.Handled = true; break;
         case ConsoleKey.C when ctrl: CopyResultUrl(); e.Handled = true; break;
         case ConsoleKey.S when ctrl: _ = SaveCurrentAsync(); e.Handled = true; break;
         case ConsoleKey.R when ctrl: _ = LoadTemplatesAsync(); e.Handled = true; break;
         case ConsoleKey.O when ctrl: OpenSettings(); e.Handled = true; break;
         case ConsoleKey.X when ctrl: _ws.Shutdown(); e.Handled = true; break;
+        case ConsoleKey.Escape: _window.FocusControl(_filter); e.Handled = true; break;
       }
     }
+
+    private void ShowHelp() =>
+      Say("Type to filter, Enter or F5 to caption, F7 saves, F6 copies the URL, F3 switches theme");
 
     private void CycleTheme(bool backward)
     {
       string name = AppThemes.Next(_ws, backward);
       AppThemes.Save(_configStore, name);
-      Toast($"Theme: {name}", NotificationSeverity.Info);
+      Say($"Theme: {name}");
     }
 
     private void OpenSettings() =>
-      new SettingsScreen(_ws, _configStore, _setup, _window, () => Log(_setup.IsConfigured
-        ? $"Logged in as [cyan]{MarkupParser.Escape(_setup.Username!)}[/]."
-        : "[yellow]No Imgflip login. Browsing only.[/]")).Show();
+      new SettingsScreen(_ws, _configStore, _setup, _window, () =>
+        Say(_setup.IsConfigured ? $"Logged in as {_setup.Username}" : "No Imgflip login")).Show();
 
-    private void Log(string markup) =>
-      _ws.InvokeAsync(() => _log.AppendLine($"[dim]{DateTime.Now:HH:mm:ss}[/] {markup}"));
+    private void Say(string text, NotificationSeverity? severity = null)
+    {
+      Logger.Info(text);
+      Debug(text);
 
-    private void Toast(string message, NotificationSeverity severity) =>
-      _ws.InvokeAsync(() => _ws.ToastService.Show(message, severity));
+      _lastMessage = text;
+      _lastSeverity = severity;
+
+      _messageCts?.Cancel();
+      CancellationTokenSource cts = new();
+      _messageCts = cts;
+
+      _ws.InvokeAsync(() => _message.SetContent([_chrome.Status(text, severity)]));
+      _ = Task.Delay(TimeSpan.FromSeconds(6), cts.Token).ContinueWith(t =>
+      {
+        if (t.IsCanceled) return;
+        _lastMessage = string.Empty;
+        _ws.InvokeAsync(() => _message.SetContent([string.Empty]));
+      }, cts.Token);
+    }
+
+    private void Debug(string text)
+    {
+      if (_debugLog is null) return;
+      _ws.InvokeAsync(() =>
+      {
+        _debugLines.Add($"[dim]{DateTime.Now:HH:mm:ss}[/] {MarkupParser.Escape(text)}");
+        if (_debugLines.Count > MaxDebugLines)
+          _debugLines.RemoveRange(0, _debugLines.Count - MaxDebugLines);
+        _debugLog.SetContent(_debugLines);
+      });
+    }
 
     private async Task LoadTemplatesAsync()
     {
       try
       {
-        _allMemes = await _imgflip.GetMemes();
-        Log($"Loaded [cyan]{_allMemes.Length}[/] templates.");
+        Meme[] memes = await _imgflip.GetMemes();
+        _knownIds.Clear();
+        _searchedQueries.Clear();
+        _searchUnavailable = false;
+        foreach (Meme m in memes) _knownIds.Add(m.Id);
+        _allMemes = memes;
+        Say($"Loaded {_allMemes.Length} templates");
         await _ws.InvokeAsync(() => ApplyFilter(_filter.Input));
       }
       catch (Exception ex)
       {
-        Log($"[red]Could not load templates:[/] {MarkupParser.Escape(ex.Message)}");
-        Toast("Loading templates failed", NotificationSeverity.Danger);
+        Say($"Could not load templates: {ex.Message}", NotificationSeverity.Danger);
       }
     }
 
-    private void ApplyFilter(string text)
+    private void ScheduleSearch(string text)
+    {
+      _searchCts?.Cancel();
+      string query = text.Trim();
+      if (query.Length < 2 || !_imgflip.IsAuthenticated) return;
+
+      CancellationTokenSource cts = new();
+      _searchCts = cts;
+      _ = Task.Run(async () =>
+      {
+        try
+        {
+          await Task.Delay(400, cts.Token);
+          await SearchAndMergeAsync(query, cts.Token);
+        }
+        catch (OperationCanceledException) { }
+      }, cts.Token);
+    }
+
+    private Task LoadMoreAsync()
+    {
+      string query = _filter.Input.Trim();
+      if (query.Length == 0) query = "meme";
+
+      if (!_imgflip.IsAuthenticated)
+      {
+        if (!_searchUnavailable)
+        {
+          _searchUnavailable = true;
+          Say("End of the free template list. Searching more templates needs an Imgflip login (F8)", NotificationSeverity.Warning);
+        }
+        return Task.CompletedTask;
+      }
+
+      return SearchAndMergeAsync(query, CancellationToken.None);
+    }
+
+    private async Task SearchAndMergeAsync(string query, CancellationToken ct)
+    {
+      if (_loadingMore || _searchUnavailable) return;
+      if (_searchedQueries.Contains(query)) return;
+
+      _loadingMore = true;
+      Debug($"Searching templates for {query}");
+
+      try
+      {
+        Meme[] found = await _imgflip.SearchMemes(query, EMemeTyp.Image, _configStore.Load().ImgFlip.IncludeNsfw);
+        if (ct.IsCancellationRequested) return;
+        _searchedQueries.Add(query);
+
+        List<Meme> added = new();
+        foreach (Meme m in found)
+          if (_knownIds.Add(m.Id)) added.Add(m);
+
+        if (added.Count == 0)
+        {
+          Debug($"No new templates for {query}");
+          return;
+        }
+
+        _allMemes = [.. _allMemes, .. added];
+        Say($"Found {added.Count} more templates for \"{query}\"");
+
+        await _ws.InvokeAsync(() =>
+        {
+          Meme? keep = _selected;
+          ApplyFilter(_filter.Input, keepSelection: true);
+          int index = keep is null ? -1 : _templates.Items.FindIndex(i => ReferenceEquals(i.Tag, keep));
+          if (index >= 0) _templates.SelectedIndex = index;
+          else if (_templates.Items.Count > 0 && _templates.SelectedIndex < 0) _templates.SelectedIndex = 0;
+        });
+      }
+      catch (OperationCanceledException) { }
+      catch (Exception ex)
+      {
+        _searchUnavailable = true;
+        Say($"Template search unavailable: {ex.Message}", NotificationSeverity.Warning);
+      }
+      finally
+      {
+        _loadingMore = false;
+      }
+    }
+
+    private void ApplyFilter(string text, bool keepSelection = false)
     {
       string needle = text.Trim();
       IEnumerable<Meme> visible = string.IsNullOrEmpty(needle)
         ? _allMemes
         : _allMemes.Where(m => m.Name.Contains(needle, StringComparison.OrdinalIgnoreCase));
 
-      List<ListItem> items = visible
-        .Select(meme => new ListItem($"{MarkupParser.Escape(meme.Name)} [dim]({meme.BoxCount})[/]") { Tag = meme })
+      var items = visible
+        .Select(meme => new ListItem($"{MarkupParser.Escape(meme.Name)} {_chrome.MutedText($"({meme.BoxCount})")}") { Tag = meme })
         .ToList();
 
       _templates.Items = items;
-      if (items.Count > 0)
+      if (items.Count > 0 && !keepSelection)
         _templates.SelectedIndex = 0;
     }
 
     private void OnTemplateSelected(ListItem? item)
     {
+      if (item is not null && _templates.Items.Count > 0 && _templates.SelectedIndex >= _templates.Items.Count - 1)
+        _ = LoadMoreAsync();
+
       if (item?.Tag is not Meme meme || ReferenceEquals(meme, _selected)) return;
 
       _selected = meme;
       _resultUrl = null;
       _lastCaptions = null;
-      _details.SetContent(
-      [
-        $"[bold]{MarkupParser.Escape(meme.Name)}[/]",
-        $"ID [cyan]{meme.Id}[/]",
-        $"{meme.Width}x{meme.Height}, {meme.BoxCount} text boxes",
-        "[dim]F5 or Enter to caption, F7 to save[/]",
-      ]);
+      RefreshHeader();
 
       _previewCts?.Cancel();
       CancellationTokenSource cts = new();
@@ -232,7 +411,7 @@ namespace image_flip_bosch.CLI.TUI
     {
       try
       {
-        await Task.Delay(150, ct);
+        await Task.Delay(120, ct);
         string path = await _cache.GetAsync(meme.Url, ct);
         if (ct.IsCancellationRequested) return;
         await _preview.LoadWhenReadyAsync(path, ct: ct);
@@ -240,70 +419,53 @@ namespace image_flip_bosch.CLI.TUI
       catch (OperationCanceledException) { }
       catch (Exception ex)
       {
-        Log($"[red]Template download failed:[/] {MarkupParser.Escape(ex.Message)}");
+        Say($"Template download failed: {ex.Message}", NotificationSeverity.Danger);
       }
     }
 
     private async Task OpenCaptionsAsync()
     {
-      if (_busy) { Log("[yellow]Busy.[/]"); return; }
-      if (_selected is null) { Log("[yellow]Select a template first.[/]"); return; }
+      if (_busy) { Say("Busy", NotificationSeverity.Warning); return; }
+      if (_selected is null) { Say("Select a template first", NotificationSeverity.Warning); return; }
 
       Meme meme = _selected;
-      string[]? texts = await new CaptionScreen(_ws, meme, _lastCaptions).ShowAsync();
-      if (texts is null) return;
+      string? imagePath = _cache.TryGetPath(meme.Url);
+      bool customDefault = _configStore.Load().ImgFlip.CustomBoxPositions;
+      MemeCreationBox[]? boxes = await new CaptionScreen(_ws, meme, imagePath, customDefault, _lastCaptions).ShowAsync();
+      if (boxes is null) return;
 
-      _lastCaptions = texts;
-      await CreateMemeAsync(meme, texts);
+      _lastCaptions = boxes;
+      await CreateMemeAsync(meme, boxes);
     }
 
-    private async Task CreateMemeAsync(Meme meme, string[] texts)
+    private async Task CreateMemeAsync(Meme meme, MemeCreationBox[] boxes)
     {
-      if (_busy) { Log("[yellow]Busy.[/]"); return; }
+      if (_busy) { Say("Busy", NotificationSeverity.Warning); return; }
 
       _busy = true;
-      Log($"Creating meme with [cyan]{MarkupParser.Escape(meme.Name)}[/]...");
+      Say($"Creating meme with {meme.Name}...");
 
       try
       {
         ImgFlipConfig options = _configStore.Load().ImgFlip;
-        _previewCts?.Cancel();
+        await _previewCts?.CancelAsync()!;
 
-        string url;
-        if (texts.Length <= 2)
-        {
-          url = await _imgflip.CaptionImage(
-            meme.Id,
-            texts.ElementAtOrDefault(0) ?? string.Empty,
-            texts.ElementAtOrDefault(1) ?? string.Empty,
-            options.MaxFontSize,
-            options.NoWatermark && _imgflip.IsAuthenticated ? true : null);
-        }
-        else
-        {
-          MemeCreationBox[] boxes = texts
-            .Select(t => new MemeCreationBox { Text = t })
-            .ToArray();
-          url = await _imgflip.CaptionImage(
-            meme.Id,
-            string.Empty,
-            string.Empty,
-            options.MaxFontSize,
-            options.NoWatermark && _imgflip.IsAuthenticated ? true : null,
-            boxes);
-        }
+        bool? noWatermark = options.NoWatermark && _imgflip.IsAuthenticated ? true : null;
+        bool positioned = boxes.Any(b => b.X is not null);
+        string url = !positioned && boxes.Length <= 2
+          ? await _imgflip.CaptionImage(meme.Id, boxes.ElementAtOrDefault(0)?.Text ?? string.Empty, boxes.ElementAtOrDefault(1)?.Text ?? string.Empty, options.MaxFontSize, noWatermark)
+          : await _imgflip.CaptionImage(meme.Id, string.Empty, string.Empty, options.MaxFontSize, noWatermark, boxes);
 
         _resultUrl = url;
-        Log($"[green]Created:[/] {MarkupParser.Escape(url)}");
-        Toast("Meme created", NotificationSeverity.Success);
+        RefreshHeader();
+        Say($"Created {url}", NotificationSeverity.Success);
 
         string path = await _cache.GetAsync(url);
         await _preview.LoadWhenReadyAsync(path);
       }
       catch (Exception ex)
       {
-        Log($"[red]Create failed:[/] {MarkupParser.Escape(ex.Message)}");
-        Toast("Create failed", NotificationSeverity.Danger);
+        Say($"Create failed: {ex.Message}", NotificationSeverity.Danger);
       }
       finally
       {
@@ -313,39 +475,37 @@ namespace image_flip_bosch.CLI.TUI
 
     private void CopyResultUrl()
     {
-      if (_resultUrl is null) { Log("[yellow]No meme created yet.[/]"); return; }
+      if (_resultUrl is null) { Say("No meme created yet", NotificationSeverity.Warning); return; }
       ClipboardHelper.SetText(_resultUrl);
-      Toast("URL copied", NotificationSeverity.Success);
-      Log("URL copied to clipboard.");
+      Say("URL copied to clipboard", NotificationSeverity.Success);
     }
 
     private async Task SaveCurrentAsync()
     {
       string? source = _preview.CurrentPath;
       string? sourceUrl = _resultUrl ?? _selected?.Url;
-      if (source is null || sourceUrl is null) { Log("[yellow]Nothing to save yet.[/]"); return; }
+      if (source is null || sourceUrl is null) { Say("Nothing to save yet", NotificationSeverity.Warning); return; }
 
       string defaultName = Path.GetFileName(new Uri(sourceUrl).AbsolutePath);
       if (_resultUrl is null && _selected is not null)
         defaultName = $"{Sanitize(_selected.Name)}{Path.GetExtension(defaultName)}";
 
-      Log("Opening file explorer...");
+      Say("Opening file explorer...");
       string? target = await NativeFileDialog.SaveFileAsync(
         Environment.GetFolderPath(Environment.SpecialFolder.MyPictures),
         defaultName);
 
-      if (target is null) { Log("Save cancelled."); return; }
+      if (target is null) { Say("Save cancelled"); return; }
 
       try
       {
         Directory.CreateDirectory(Path.GetDirectoryName(target)!);
         File.Copy(source, target, overwrite: true);
-        Log($"[green]Saved:[/] {MarkupParser.Escape(target)}");
-        Toast("Saved", NotificationSeverity.Success);
+        Say($"Saved {target}", NotificationSeverity.Success);
       }
       catch (Exception ex)
       {
-        Log($"[red]Save failed:[/] {MarkupParser.Escape(ex.Message)}");
+        Say($"Save failed: {ex.Message}", NotificationSeverity.Danger);
       }
     }
 

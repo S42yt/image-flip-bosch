@@ -63,7 +63,7 @@ namespace image_flip_bosch.CLI.Utils.Image
     }
     public bool Contains(string url) => TryGetPath(url) is not null;
 
-    private string? TryGetPath(string url)
+    public string? TryGetPath(string url)
     {
       string? path = FindFile(KeyFor(url));
       return path is not null && !IsExpired(path) ? path : null;

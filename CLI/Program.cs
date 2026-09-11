@@ -20,6 +20,9 @@ namespace image_flip_bosch.CLI
       Console.OutputEncoding = Encoding.UTF8;
       Console.InputEncoding = Encoding.UTF8;
 
+      bool showDebug = args.Any(a => a.Equals("-DShowDebugScreen", StringComparison.OrdinalIgnoreCase) || a == "--debug");
+      AppOptions appOptions = new(showDebug);
+
       Logger.Info("Starting the application...");
 
       ConfigStore<AppConfig> configStore = new();
@@ -48,7 +51,7 @@ namespace image_flip_bosch.CLI
       Logger.Info($"Sixel: supported={sixel.Supported} cell={sixel.CellWidth}x{sixel.CellHeight}");
 
       Logger.UseFile(ConfigPaths.File("app.log"));
-      Logger.MinimumLevel = LogLevel.Info;
+      Logger.MinimumLevel = showDebug ? LogLevel.Debug : LogLevel.Info;
 
       ConsoleWindowSystem ws = new(
         new SixelDriver(new NetConsoleDriver(RenderMode.Buffer), sixel),
@@ -57,14 +60,15 @@ namespace image_flip_bosch.CLI
       string theme = AppThemes.ApplyFromConfig(ws, configStore);
       Logger.Info($"Theme: {theme}");
 
-      MainScreen main = new(ws, cache, imgflip, configStore, setup);
+      MainScreen main = new(ws, cache, imgflip, configStore, setup, appOptions);
       main.Show();
 
       int code = await Task.Run(ws.Run);
 
-      Logger.MinimumLevel = LogLevel.Debug;
+      //das ändern je nach log level den du brauchst
+      Logger.MinimumLevel = LogLevel.Error;
       Logger.UseConsole();
-      Logger.Info("Application finished.");
+      //Logger.Info("Application finished.");
       return code;
     }
   }

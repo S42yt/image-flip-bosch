@@ -1,11 +1,11 @@
-﻿using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.PixelFormats;
-using SixLabors.ImageSharp.Processing;
-using SixLabors.ImageSharp.Processing.Processors.Quantization;
-using System.Text;
-
-namespace image_flip_bosch.CLI.Sixel
+﻿namespace image_flip_bosch.CLI.Sixel
 {
+  using SixLabors.ImageSharp;
+  using SixLabors.ImageSharp.PixelFormats;
+  using SixLabors.ImageSharp.Processing;
+  using SixLabors.ImageSharp.Processing.Processors.Quantization;
+  using System;
+  using System.Text;
 
   public sealed record SixelFrame(string Data, int Cols, int Rows, int PixelWidth, int PixelHeight);
 
@@ -19,7 +19,7 @@ namespace image_flip_bosch.CLI.Sixel
       int cellHeight,
       Rgba32 background,
       int maxColors = 256,
-      bool dither = true)
+      bool dither = false)
     {
       int canvasW = Math.Max(1, cols * cellWidth);
       int canvasH = Math.Max(1, rows * cellHeight);
@@ -33,16 +33,33 @@ namespace image_flip_bosch.CLI.Sixel
       if (targetW != source.Width || targetH != source.Height)
         source.Mutate(x => x.Resize(targetW, targetH));
 
-      using Image<Rgba32> canvas = new(canvasW, canvasH, background);
       int offX = (canvasW - targetW) / 2;
       int offY = (canvasH - targetH) / 2;
+
+      using Image<Rgba32> canvas = new(canvasW, canvasH, background);
       canvas.Mutate(x => x.DrawImage(source, new Point(offX, offY), 1f));
 
-      string data = Encode(canvas, maxColors, dither, opaque: true);
-      return new SixelFrame(data, cols, rows, canvasW, canvasH);
+      string image = Encode(canvas, maxColors, dither, opaque: true);
+      return new SixelFrame(image, cols, rows, canvasW, canvasH);
     }
 
-    private static string Encode(Image<Rgba32> image, int maxColors = 256, bool dither = true, bool opaque = false)
+    public static string SolidRect(int width, int height, Rgba32 color)
+    {
+      StringBuilder sb = new(256);
+      sb.Append("\x1bP0;0;0q");
+      sb.Append("\"1;1;").Append(width).Append(';').Append(height);
+      sb.Append("#0;2;").Append(color.R * 100 / 255).Append(';').Append(color.G * 100 / 255).Append(';').Append(color.B * 100 / 255);
+      for (int band = 0; band < height; band += 6)
+      {
+        int bandRows = Math.Min(6, height - band);
+        char ch = (char)(63 + ((1 << bandRows) - 1));
+        sb.Append("#0!").Append(width).Append(ch).Append('-');
+      }
+      sb.Append("\x1b\\");
+      return sb.ToString();
+    }
+
+    public static string Encode(Image<Rgba32> image, int maxColors = 256, bool dither = true, bool opaque = false)
     {
       QuantizerOptions options = new()
       {
@@ -123,7 +140,7 @@ namespace image_flip_bosch.CLI.Sixel
         sb.Append('-');
       }
 
-      sb.Append("\e" + "\\");
+      sb.Append("\x1b\\");
       return sb.ToString();
     }
 
