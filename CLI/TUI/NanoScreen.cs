@@ -9,8 +9,6 @@ namespace image_flip_bosch.CLI.TUI
 
   internal abstract class NanoScreen
   {
-    protected const string AppTitle = "image_flip_bosch";
-
     protected readonly ConsoleWindowSystem Ws;
     protected NanoChrome Chrome;
     protected Window Window = null!;
@@ -49,6 +47,7 @@ namespace image_flip_bosch.CLI.TUI
 
       _shortcuts = Controls.Markup(string.Empty)
         .WithAlignment(HorizontalAlignment.Stretch)
+        .WithBackgroundColor(Chrome.BarBackground)
         .StickyBottom()
         .Build();
       _shortcuts.SetContent(ShortcutRows());
@@ -59,7 +58,7 @@ namespace image_flip_bosch.CLI.TUI
       controls.Add(_shortcuts);
 
       WindowBuilder builder = new WindowBuilder(Ws)
-        .WithTitle($"{AppTitle} {_screenTitle}")
+        .WithTitle(_screenTitle)
         .Frameless()
         .Resizable(false)
         .Movable(false)
@@ -129,6 +128,7 @@ namespace image_flip_bosch.CLI.TUI
       {
         _header.BackgroundColor = Chrome.HeaderBackground;
         _header.SetContent([HeaderText()]);
+        _shortcuts.BackgroundColor = Chrome.BarBackground;
         _shortcuts.SetContent(ShortcutRows());
         if (_lastMessage.Length > 0)
           _message.SetContent([Chrome.Status(_lastMessage, _lastSeverity)]);
@@ -152,12 +152,7 @@ namespace image_flip_bosch.CLI.TUI
     private string HeaderText()
     {
       int width = Math.Max(20, Ws.ConsoleDriver.ScreenSize.Width);
-      string left = $"  {AppTitle}";
-      string center = HeaderCenter;
-      int pad = Math.Max(1, (width - left.Length - center.Length) / 2 - 1);
-      string line = left + new string(' ', pad) + center;
-      if (line.Length < width) line += new string(' ', width - line.Length);
-      return Chrome.Header(line);
+      return Chrome.Header(" ", HeaderCenter, " ", width);
     }
   }
 }

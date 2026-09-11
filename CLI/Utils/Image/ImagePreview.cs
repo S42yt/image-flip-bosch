@@ -61,7 +61,7 @@ namespace image_flip_bosch.CLI.Utils.Image
       await Task.Run(() => LoadCoreAsync(path, version, ct), ct);
     }
 
-    private void Clear()
+    public void Clear()
     {
       Interlocked.Increment(ref _loadVersion);
       SetImage(null);

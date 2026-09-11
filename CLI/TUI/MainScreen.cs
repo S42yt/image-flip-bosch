@@ -9,7 +9,7 @@ using image_flip_bosch.ImgFlip.Requests;
 using SharpConsoleUI;
 using SharpConsoleUI.Builders;
 using SharpConsoleUI.Controls;
-using SharpConsoleUI.Core;
+using SharpConsoleUI.Core;  
 using SharpConsoleUI.Helpers;
 using SharpConsoleUI.Layout;
 using SharpConsoleUI.Parsing;
@@ -38,10 +38,12 @@ namespace image_flip_bosch.CLI.TUI
     private readonly MarkupControl _shortcuts;
     private readonly MarkupControl? _debugLog;
     private readonly Window _window;
+    private GridControl? _contentGrid;
     private NanoChrome _chrome;
     private string _lastMessage = string.Empty;
     private NotificationSeverity? _lastSeverity;
 
+    private EMemeTyp _mode = EMemeTyp.Image;
     private Meme[] _allMemes = Array.Empty<Meme>();
     private readonly HashSet<string> _knownIds = new();
     private readonly HashSet<string> _searchedQueries = new(StringComparer.OrdinalIgnoreCase);
@@ -81,7 +83,7 @@ namespace image_flip_bosch.CLI.TUI
         .StickyTop()
         .Build();
 
-      _templates = Controls.List("Templates")
+      _templates = Controls.List(ListTitle())
         .WithVerticalAlignment(VerticalAlignment.Fill)
         .WithAlignment(HorizontalAlignment.Stretch)
         .OnSelectedItemChanged((_, item) => OnTemplateSelected(item))
@@ -98,13 +100,17 @@ namespace image_flip_bosch.CLI.TUI
       GridBuilder grid = Controls.Grid()
         .Rows(GridLength.Star())
         .ColumnGap(1)
+        .ColumnGridlines()
+        .GridlineStyle(BorderStyle.Single)
+        .GridlineColor(_chrome.Separator)
         .WithAlignment(HorizontalAlignment.Stretch)
         .WithVerticalAlignment(VerticalAlignment.Fill);
 
       GridControl content;
+      _contentGrid = null;
       if (options.ShowDebugScreen)
       {
-        _debugLog = Controls.Markup("[dim]debug log[/]").Build();
+        _debugLog = Controls.Markup(_chrome.MutedText("debug log")).Build();
         ScrollablePanelControl logPanel = Controls.ScrollablePanel()
           .AddControl(_debugLog)
           .WithAutoScroll()
@@ -122,6 +128,7 @@ namespace image_flip_bosch.CLI.TUI
         content.Place(_templates, 0, 0);
         content.Place(_preview, 0, 1);
       }
+      _contentGrid = content;
 
       _message = Controls.Markup(string.Empty)
         .WithAlignment(HorizontalAlignment.Center)
@@ -130,6 +137,7 @@ namespace image_flip_bosch.CLI.TUI
 
       _shortcuts = Controls.Markup(string.Empty)
         .WithAlignment(HorizontalAlignment.Stretch)
+        .WithBackgroundColor(_chrome.BarBackground)
         .StickyBottom()
         .Build();
       _shortcuts.SetContent(ShortcutRows());
@@ -148,6 +156,12 @@ namespace image_flip_bosch.CLI.TUI
       ws.ThemeStateService.ThemeChanged += (_, e) => ApplyChrome(e.NewTheme);
     }
 
+    private bool GifMode => _mode == EMemeTyp.Gif;
+
+    private bool GifsAvailable => _imgflip.IsPremium == true;
+
+    private string ListTitle() => GifMode ? "GIF templates" : "Image templates";
+
     private void ApplyChrome(ITheme theme)
     {
       _chrome = NanoChrome.From(theme);
@@ -155,9 +169,12 @@ namespace image_flip_bosch.CLI.TUI
       {
         _header.BackgroundColor = _chrome.HeaderBackground;
         _header.SetContent([HeaderText(_selected)]);
+        _shortcuts.BackgroundColor = _chrome.BarBackground;
         _shortcuts.SetContent(ShortcutRows());
+        if (_contentGrid is not null) _contentGrid.GridlineColor = _chrome.Separator;
         if (_lastMessage.Length > 0)
           _message.SetContent([_chrome.Status(_lastMessage, _lastSeverity)]);
+        ApplyFilter(_filter.Input, keepSelection: true);
       });
     }
 
@@ -173,29 +190,36 @@ namespace image_flip_bosch.CLI.TUI
       _window.FocusControl(_filter);
       Say(_setup.IsConfigured ? $"Logged in as {_setup.Username}" : "No Imgflip login, memes get the imgflip watermark");
       _ = LoadTemplatesAsync();
+      _ = RefreshPremiumAsync();
+    }
+
+    private async Task RefreshPremiumAsync()
+    {
+      bool premium = await _imgflip.CheckPremiumAsync();
+      Debug(premium ? "Premium account: GIF templates available" : "No premium: GIF templates hidden");
+
+      await _ws.InvokeAsync(() =>
+      {
+        _shortcuts.SetContent(ShortcutRows());
+        if (GifMode && !premium) ToggleMode();
+      });
     }
 
     private List<string> ShortcutRows() =>
     [
-      _chrome.Key("F5", "Caption") + _chrome.Key("F6", "Copy URL") + _chrome.Key("F7", "Save") + _chrome.Key("F8", "Settings"),
+      _chrome.Key("F5", "Caption") + _chrome.Key("F6", "Copy URL") + _chrome.Key("F7", "Save") + _chrome.Key("F8", "Settings") + (GifsAvailable ? _chrome.Key("F2", GifMode ? "Images" : "GIFs") : string.Empty),
       _chrome.Key("F9", "Reload") + _chrome.Key("F3", "Theme") + _chrome.Key("F1", "Help") + _chrome.Key("F4", "Exit"),
     ];
 
     private string HeaderText(Meme? meme)
     {
       int width = Math.Max(20, _ws.ConsoleDriver.ScreenSize.Width);
-      const string left = " ";
-      string center = meme is null ? "New Meme" : $"{meme.Name}  ({meme.BoxCount} boxes, {meme.Width}x{meme.Height})";
-      string right = _resultUrl is null ? string.Empty : "Created  ";
-
-      int pad = Math.Max(1, (width - left.Length - center.Length) / 2 - 1);
-      string line = left + new string(' ', pad) + center;
-      if (line.Length + right.Length < width)
-        line += new string(' ', width - line.Length - right.Length) + right;
-      else if (line.Length < width)
-        line += new string(' ', width - line.Length);
-
-      return _chrome.Header(line);
+      string left = GifMode ? " GIF " : " Image ";
+      string center = meme is null
+        ? (GifMode ? "New GIF meme" : "New meme")
+        : $"{meme.Name}  ({meme.BoxCount} boxes, {meme.Width}x{meme.Height})";
+      string right = _resultUrl is null ? " " : " Created ";
+      return _chrome.Header(left, center, right, width);
     }
 
     private void RefreshHeader() => _ws.InvokeAsync(() => _header.SetContent([HeaderText(_selected)]));
@@ -206,6 +230,7 @@ namespace image_flip_bosch.CLI.TUI
       switch (e.KeyInfo.Key)
       {
         case ConsoleKey.F1: ShowHelp(); e.Handled = true; break;
+        case ConsoleKey.F2 when GifsAvailable: ToggleMode(); e.Handled = true; break;
         case ConsoleKey.F3: CycleTheme(e.KeyInfo.Modifiers.HasFlag(ConsoleModifiers.Shift)); e.Handled = true; break;
         case ConsoleKey.F4: _ws.Shutdown(); e.Handled = true; break;
         case ConsoleKey.F5: _ = OpenCaptionsAsync(); e.Handled = true; break;
@@ -223,7 +248,24 @@ namespace image_flip_bosch.CLI.TUI
     }
 
     private void ShowHelp() =>
-      Say("Type to filter, Enter or F5 to caption, F7 saves, F6 copies the URL, F3 switches theme");
+      Say(GifsAvailable
+        ? "Type to filter, Enter or F5 to caption, F2 switches between image and GIF templates, F7 saves, F6 copies the URL"
+        : "Type to filter, Enter or F5 to caption, F7 saves, F6 copies the URL, F3 switches theme");
+
+    private void ToggleMode()
+    {
+      _mode = GifMode ? EMemeTyp.Image : EMemeTyp.Gif;
+      _selected = null;
+      _resultUrl = null;
+      _lastCaptions = null;
+      _previewCts?.Cancel();
+      _preview.Clear();
+      _templates.Title = ListTitle();
+      _shortcuts.SetContent(ShortcutRows());
+      RefreshHeader();
+      Say(GifMode ? "GIF templates" : "Image templates");
+      _ = LoadTemplatesAsync();
+    }
 
     private void CycleTheme(bool backward)
     {
@@ -234,7 +276,11 @@ namespace image_flip_bosch.CLI.TUI
 
     private void OpenSettings() =>
       new SettingsScreen(_ws, _configStore, _setup, _window, () =>
-        Say(_setup.IsConfigured ? $"Logged in as {_setup.Username}" : "No Imgflip login")).Show();
+      {
+        Say(_setup.IsConfigured ? $"Logged in as {_setup.Username}" : "No Imgflip login");
+        _imgflip.ResetPremium();
+        _ = RefreshPremiumAsync();
+      }).Show();
 
     private void Say(string text, NotificationSeverity? severity = null)
     {
@@ -262,7 +308,7 @@ namespace image_flip_bosch.CLI.TUI
       if (_debugLog is null) return;
       _ws.InvokeAsync(() =>
       {
-        _debugLines.Add($"[dim]{DateTime.Now:HH:mm:ss}[/] {MarkupParser.Escape(text)}");
+        _debugLines.Add($"{_chrome.MutedText(DateTime.Now.ToString("HH:mm:ss"))} {MarkupParser.Escape(text)}");
         if (_debugLines.Count > MaxDebugLines)
           _debugLines.RemoveRange(0, _debugLines.Count - MaxDebugLines);
         _debugLog.SetContent(_debugLines);
@@ -271,15 +317,17 @@ namespace image_flip_bosch.CLI.TUI
 
     private async Task LoadTemplatesAsync()
     {
+      EMemeTyp mode = _mode;
       try
       {
-        Meme[] memes = await _imgflip.GetMemes();
+        Meme[] memes = await _imgflip.GetMemes(mode);
+        if (mode != _mode) return;
         _knownIds.Clear();
         _searchedQueries.Clear();
         _searchUnavailable = false;
         foreach (Meme m in memes) _knownIds.Add(m.Id);
         _allMemes = memes;
-        Say($"Loaded {_allMemes.Length} templates");
+        Say($"Loaded {_allMemes.Length} {(GifMode ? "GIF" : "image")} templates");
         await _ws.InvokeAsync(() => ApplyFilter(_filter.Input));
       }
       catch (Exception ex)
@@ -330,13 +378,14 @@ namespace image_flip_bosch.CLI.TUI
       if (_loadingMore || _searchUnavailable) return;
       if (_searchedQueries.Contains(query)) return;
 
+      EMemeTyp mode = _mode;
       _loadingMore = true;
-      Debug($"Searching templates for {query}");
+      Debug($"Searching {(GifMode ? "GIF" : "image")} templates for {query}");
 
       try
       {
-        Meme[] found = await _imgflip.SearchMemes(query, EMemeTyp.Image, _configStore.Load().ImgFlip.IncludeNsfw);
-        if (ct.IsCancellationRequested) return;
+        Meme[] found = await _imgflip.SearchMemes(query, mode, _configStore.Load().ImgFlip.IncludeNsfw);
+        if (ct.IsCancellationRequested || mode != _mode) return;
         _searchedQueries.Add(query);
 
         List<Meme> added = new();
@@ -381,7 +430,7 @@ namespace image_flip_bosch.CLI.TUI
         : _allMemes.Where(m => m.Name.Contains(needle, StringComparison.OrdinalIgnoreCase));
 
       var items = visible
-        .Select(meme => new ListItem($"{MarkupParser.Escape(meme.Name)} {_chrome.MutedText($"({meme.BoxCount})")}") { Tag = meme })
+        .Select(meme => new ListItem($"{MarkupParser.Escape(meme.Name)} {_chrome.MutedText($"({meme.BoxCount})")}{(GifMode ? " " + _chrome.InfoText("gif") : string.Empty)}") { Tag = meme })
         .ToList();
 
       _templates.Items = items;
@@ -427,7 +476,6 @@ namespace image_flip_bosch.CLI.TUI
     {
       if (_busy) { Say("Busy", NotificationSeverity.Warning); return; }
       if (_selected is null) { Say("Select a template first", NotificationSeverity.Warning); return; }
-
       Meme meme = _selected;
       string? imagePath = _cache.TryGetPath(meme.Url);
       bool customDefault = _configStore.Load().ImgFlip.CustomBoxPositions;
@@ -443,18 +491,23 @@ namespace image_flip_bosch.CLI.TUI
       if (_busy) { Say("Busy", NotificationSeverity.Warning); return; }
 
       _busy = true;
-      Say($"Creating meme with {meme.Name}...");
+      Say($"Creating {(GifMode ? "GIF" : "meme")} with {meme.Name}...");
 
       try
       {
         ImgFlipConfig options = _configStore.Load().ImgFlip;
-        await _previewCts?.CancelAsync()!;
+        _previewCts?.Cancel();
 
         bool? noWatermark = options.NoWatermark && _imgflip.IsAuthenticated ? true : null;
         bool positioned = boxes.Any(b => b.X is not null);
-        string url = !positioned && boxes.Length <= 2
-          ? await _imgflip.CaptionImage(meme.Id, boxes.ElementAtOrDefault(0)?.Text ?? string.Empty, boxes.ElementAtOrDefault(1)?.Text ?? string.Empty, options.MaxFontSize, noWatermark)
-          : await _imgflip.CaptionImage(meme.Id, string.Empty, string.Empty, options.MaxFontSize, noWatermark, boxes);
+
+        string url;
+        if (GifMode)
+          url = await _imgflip.CaptionGif(meme.Id, boxes, options.MaxFontSize, noWatermark);
+        else if (!positioned && boxes.Length <= 2)
+          url = await _imgflip.CaptionImage(meme.Id, boxes.ElementAtOrDefault(0)?.Text ?? string.Empty, boxes.ElementAtOrDefault(1)?.Text ?? string.Empty, options.MaxFontSize, noWatermark);
+        else
+          url = await _imgflip.CaptionImage(meme.Id, string.Empty, string.Empty, options.MaxFontSize, noWatermark, boxes);
 
         _resultUrl = url;
         RefreshHeader();

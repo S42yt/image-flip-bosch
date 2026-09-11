@@ -5,14 +5,13 @@ using SharpConsoleUI.Builders;
 using SharpConsoleUI.Controls;
 using SharpConsoleUI.Core;
 using SharpConsoleUI.Layout;
-using SharpConsoleUI.Parsing;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
 
+
 namespace image_flip_bosch.CLI.TUI
 {
-
   internal sealed class CaptionScreen : NanoScreen
   {
     private sealed class Box
@@ -78,7 +77,7 @@ namespace image_flip_bosch.CLI.TUI
       List<IWindowControl> column =
       [
         Controls.Markup(string.Empty).Build(),
-        Controls.Markup($" [bold]{MarkupParser.Escape(meme.Name)}[/] {Chrome.MutedText($"{meme.Width}x{meme.Height}")}").Build(),
+        Controls.Markup($" {Chrome.HighlightText(meme.Name)} {Chrome.MutedText($"{meme.Width}x{meme.Height}")}").Build(),
         Controls.Markup(string.Empty).Build(),
       ];
 
@@ -316,7 +315,7 @@ namespace image_flip_bosch.CLI.TUI
         {
           Say($"Preview failed: {ex.Message}", NotificationSeverity.Danger);
         }
-      }, cts.Token);
+      });
     }
 
     private static byte[] ComposeOverlay(string path, int templateW, int templateH, List<(int x, int y, int w, int h, string color, bool active)> boxes)

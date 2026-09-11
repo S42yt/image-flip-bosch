@@ -1,49 +1,81 @@
+using SharpConsoleUI;
+using SharpConsoleUI.Core;
+using SharpConsoleUI.Parsing;
+using SharpConsoleUI.Themes;
+using System;
+
 namespace image_flip_bosch.CLI.TUI
 {
-  using SharpConsoleUI;
-  using SharpConsoleUI.Core;
-  using SharpConsoleUI.Parsing;
-  using SharpConsoleUI.Themes;
 
   internal sealed class NanoChrome
   {
+    public Color Background { get; private init; }
+    public Color Foreground { get; private init; }
     public Color HeaderBackground { get; private init; }
-    private Color HeaderForeground { get; init; }
-    private Color KeyBackground { get; init; }
-    private Color KeyForeground { get; init; }
-    private Color StatusBackground { get; init; }
-    public Color StatusForeground { get; private init; }
+    public Color HeaderForeground { get; private init; }
+    public Color HeaderTitle { get; private init; }
+    public Color BarBackground { get; private init; }
+    public Color BarForeground { get; private init; }
+    public Color KeyBackground { get; private init; }
+    public Color KeyForeground { get; private init; }
+    public Color StatusBackground { get; private init; }
+    public Color Accent { get; private init; }
+    public Color Section { get; private init; }
+    public Color Info { get; private init; }
     public Color Success { get; private init; }
-    private Color Warning { get; init; }
-    private Color Danger { get; init; }
-    private Color Muted { get; init; }
+    public Color Warning { get; private init; }
+    public Color Danger { get; private init; }
+    public Color Muted { get; private init; }
+    public Color Separator { get; private init; }
+    public Color Highlight { get; private init; }
 
     public static NanoChrome From(ITheme theme)
     {
-      Color accent = theme.PrimaryColor ?? Color.Grey;
+      Color background = theme.WindowBackgroundColor.A == 0 ? Color.FromHex("#101214") : theme.WindowBackgroundColor;
+      Color foreground = theme.WindowForegroundColor;
+      Color accent = theme.PrimaryColor ?? foreground;
       Color headerBg = theme.TopBarBackgroundColor ?? accent;
+      Color barBg = theme.StatusBarBackgroundColor ?? theme.BottomBarBackgroundColor ?? background;
       Color keyBg = theme.BottomBarBackgroundColor ?? accent;
-      Color statusBg = theme.SecondaryColor ?? theme.TopBarBackgroundColor ?? accent;
+      Color statusBg = theme.SecondaryColor ?? theme.InfoColor ?? accent;
 
       return new NanoChrome
       {
+        Background = background,
+        Foreground = foreground,
         HeaderBackground = headerBg,
         HeaderForeground = theme.TopBarForegroundColor ?? Contrast(headerBg),
+        HeaderTitle = theme.ActiveTitleForegroundColor ?? theme.TopBarForegroundColor ?? Contrast(headerBg),
+        BarBackground = barBg,
+        BarForeground = theme.StatusBarForegroundColor ?? theme.BottomBarForegroundColor ?? Contrast(barBg),
         KeyBackground = keyBg,
-        KeyForeground = theme.BottomBarForegroundColor ?? Contrast(keyBg),
+        KeyForeground = theme.StatusBarShortcutForegroundColor ?? theme.BottomBarForegroundColor ?? Contrast(keyBg),
         StatusBackground = statusBg,
-        StatusForeground = Contrast(statusBg),
+        Accent = accent,
+        Section = theme.TertiaryColor ?? theme.SecondaryColor ?? accent,
+        Info = theme.InfoColor ?? accent,
         Success = theme.SuccessColor ?? Color.Green,
         Warning = theme.WarningColor ?? Color.Yellow,
         Danger = theme.DangerColor ?? Color.Red,
-        Muted = theme.InactiveTitleForegroundColor ?? Color.Grey,
+        Muted = theme.InactiveTitleForegroundColor ?? theme.SecondaryColor ?? Color.Grey,
+        Separator = theme.SeparatorForegroundColor ?? theme.InactiveBorderForegroundColor ?? theme.InactiveTitleForegroundColor ?? Color.Grey,
+        Highlight = theme.ListSelectedForegroundColor ?? foreground,
       };
     }
 
-    public string Header(string text) => Paint(text, HeaderForeground, HeaderBackground);
+    public string Header(string left, string center, string right, int width)
+    {
+      int pad = Math.Max(1, (width - left.Length - center.Length) / 2 - 1);
+      int tail = Math.Max(0, width - left.Length - pad - center.Length - right.Length);
+      return Paint(left, HeaderForeground, HeaderBackground)
+        + Paint(new string(' ', pad), HeaderForeground, HeaderBackground)
+        + Paint(center, HeaderTitle, HeaderBackground, bold: true)
+        + Paint(new string(' ', tail), HeaderForeground, HeaderBackground)
+        + Paint(right, HeaderTitle, HeaderBackground);
+    }
 
     public string Key(string key, string label) =>
-      $"{Paint(key.PadLeft(2), KeyForeground, KeyBackground)} {MarkupParser.Escape(label),-11}";
+      $"{Paint(key.PadLeft(2), KeyForeground, KeyBackground, bold: true)}{Paint($" {label,-11}", BarForeground, BarBackground)}";
 
     public string Status(string text, NotificationSeverity? severity)
     {
@@ -55,10 +87,18 @@ namespace image_flip_bosch.CLI.TUI
       return Paint($" {text} ", Contrast(bg), bg);
     }
 
+    public string SectionText(string text) => $"[{Section.ToMarkup()} bold]{MarkupParser.Escape(text)}[/]";
+
     public string MutedText(string text) => $"[{Muted.ToMarkup()}]{MarkupParser.Escape(text)}[/]";
 
-    private static string Paint(string text, Color fg, Color bg) =>
-      $"[{fg.ToMarkup()} on {bg.ToMarkup()}]{MarkupParser.Escape(text)}[/]";
+    public string AccentText(string text) => $"[{Accent.ToMarkup()}]{MarkupParser.Escape(text)}[/]";
+
+    public string InfoText(string text) => $"[{Info.ToMarkup()}]{MarkupParser.Escape(text)}[/]";
+
+    public string HighlightText(string text) => $"[{Highlight.ToMarkup()} bold]{MarkupParser.Escape(text)}[/]";
+
+    private static string Paint(string text, Color fg, Color bg, bool bold = false) =>
+      $"[{fg.ToMarkup()} on {bg.ToMarkup()}{(bold ? " bold" : string.Empty)}]{MarkupParser.Escape(text)}[/]";
 
     private static Color Contrast(Color c)
     {

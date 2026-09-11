@@ -4,6 +4,10 @@ using SharpConsoleUI;
 using SharpConsoleUI.Builders;
 using SharpConsoleUI.Controls;
 using SharpConsoleUI.Core;
+using SharpConsoleUI.Layout;
+using System;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace image_flip_bosch.CLI.TUI
 {
@@ -84,18 +88,18 @@ namespace image_flip_bosch.CLI.TUI
       List<IWindowControl> column =
       [
         Controls.Markup(string.Empty).Build(),
-        Controls.Markup(Chrome.MutedText(" Imgflip account")).Build(),
+        Controls.Markup(Chrome.SectionText(" Imgflip account")).Build(),
         _username,
         _password,
         _account,
         Controls.Markup(string.Empty).Build(),
-        Controls.Markup(Chrome.MutedText(" Memes")).Build(),
+        Controls.Markup(Chrome.SectionText(" Memes")).Build(),
         _maxFontSize,
         _noWatermark,
         _includeNsfw,
         _customBoxes,
         Controls.Markup(string.Empty).Build(),
-        Controls.Markup(Chrome.MutedText(" Appearance")).Build(),
+        Controls.Markup(Chrome.SectionText(" Appearance")).Build(),
         _theme,
       ];
 
@@ -136,7 +140,7 @@ namespace image_flip_bosch.CLI.TUI
     {
       if (!_setup.IsConfigured) return Chrome.MutedText(" Not logged in. Memes will carry the imgflip watermark.");
       string storage = _setup.IsProtectedStorage ? "password encrypted" : "password stored unencrypted";
-      return $" [{Chrome.Success.ToMarkup()}]Logged in as {SharpConsoleUI.Parsing.MarkupParser.Escape(_setup.Username!)}[/] {Chrome.MutedText($"({storage})")}";
+      return $" [{Chrome.Success.ToMarkup()}]Logged in as[/] {Chrome.HighlightText(_setup.Username!)} {Chrome.MutedText($"({storage})")}";
     }
 
     private void Save()

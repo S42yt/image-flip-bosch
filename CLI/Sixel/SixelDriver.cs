@@ -2,11 +2,8 @@
 using SharpConsoleUI.Core;
 using SharpConsoleUI.Drivers;
 using SharpConsoleUI.Layout;
-using System;
-using System.Collections.Generic;
 using System.Drawing;
 using System.Text;
-using System.Threading.Tasks;
 using Size = SharpConsoleUI.Helpers.Size;
 
 namespace image_flip_bosch.CLI.Sixel
@@ -31,7 +28,7 @@ namespace image_flip_bosch.CLI.Sixel
     private long _lastEmitTicks;
     private bool _throttleScheduled;
     private bool _forceAllSnapshot;
-    private static readonly TimeSpan MinEmitInterval = TimeSpan.FromMilliseconds(120);
+    private static readonly TimeSpan MinEmitInterval = TimeSpan.FromMilliseconds(30);
     private readonly bool _disabled = Environment.GetEnvironmentVariable("IFB_NO_SIXEL") is not null;
     private int[] _map = Array.Empty<int>();
     private int _w;

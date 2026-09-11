@@ -1,13 +1,15 @@
-﻿namespace image_flip_bosch.CLI.Sixel
+﻿using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.PixelFormats;
+using SixLabors.ImageSharp.Processing;
+using SixLabors.ImageSharp.Processing.Processors.Quantization;
+using System.Text;
+
+namespace image_flip_bosch.CLI.Sixel
 {
-  using SixLabors.ImageSharp;
-  using SixLabors.ImageSharp.PixelFormats;
-  using SixLabors.ImageSharp.Processing;
-  using SixLabors.ImageSharp.Processing.Processors.Quantization;
-  using System;
-  using System.Text;
 
   public sealed record SixelFrame(string Data, int Cols, int Rows, int PixelWidth, int PixelHeight);
+
+  public sealed record SixelAnimationFrame(SixelFrame Frame, int DelayMs);
 
   public static class SixelEncoder
   {
@@ -24,7 +26,7 @@
       int canvasW = Math.Max(1, cols * cellWidth);
       int canvasH = Math.Max(1, rows * cellHeight);
 
-      using var source = Image.Load<Rgba32>(imageData);
+      using Image<Rgba32> source = Image.Load<Rgba32>(imageData);
 
       double scale = Math.Min(1.0, Math.Min((double)canvasW / source.Width, (double)canvasH / source.Height));
       int targetW = Math.Max(1, (int)Math.Round(source.Width * scale));
@@ -41,6 +43,67 @@
 
       string image = Encode(canvas, maxColors, dither, opaque: true);
       return new SixelFrame(image, cols, rows, canvasW, canvasH);
+    }
+
+    public static bool IsAnimatedGif(byte[] data)
+    {
+      if (data.Length < 6 || data[0] != (byte)'G' || data[1] != (byte)'I' || data[2] != (byte)'F') return false;
+      try
+      {
+        using Image<Rgba32> image = Image.Load<Rgba32>(data);
+        return image.Frames.Count > 1;
+      }
+      catch
+      {
+        return false;
+      }
+    }
+
+    public static List<SixelAnimationFrame> RenderGifToCells(
+      byte[] gifData,
+      int cols,
+      int rows,
+      int cellWidth,
+      int cellHeight,
+      Rgba32 background,
+      int maxColors = 128,
+      int maxFrames = 200,
+      Action<int, int>? progress = null,
+      System.Threading.CancellationToken ct = default)
+    {
+      int canvasW = Math.Max(1, cols * cellWidth);
+      int canvasH = Math.Max(1, rows * cellHeight);
+
+      using Image<Rgba32> gif = Image.Load<Rgba32>(gifData);
+      int frameCount = Math.Min(gif.Frames.Count, maxFrames);
+
+      double scale = Math.Min(1.0, Math.Min((double)canvasW / gif.Width, (double)canvasH / gif.Height));
+      int targetW = Math.Max(1, (int)Math.Round(gif.Width * scale));
+      int targetH = Math.Max(1, (int)Math.Round(gif.Height * scale));
+      int offX = (canvasW - targetW) / 2;
+      int offY = (canvasH - targetH) / 2;
+
+      List<SixelAnimationFrame> result = new(frameCount);
+      for (int i = 0; i < frameCount; i++)
+      {
+        ct.ThrowIfCancellationRequested();
+
+        int delay = gif.Frames[i].Metadata.GetGifMetadata().FrameDelay * 10;
+        if (delay < 20) delay = 100;
+
+        using Image<Rgba32> frame = gif.Frames.CloneFrame(i);
+        if (targetW != frame.Width || targetH != frame.Height)
+          frame.Mutate(x => x.Resize(targetW, targetH));
+
+        using Image<Rgba32> canvas = new(canvasW, canvasH, background);
+        canvas.Mutate(x => x.DrawImage(frame, new Point(offX, offY), 1f));
+
+        string data = Encode(canvas, maxColors, dither: false, opaque: true);
+        result.Add(new SixelAnimationFrame(new SixelFrame(data, cols, rows, canvasW, canvasH), delay));
+        progress?.Invoke(i + 1, frameCount);
+      }
+
+      return result;
     }
 
     public static string SolidRect(int width, int height, Rgba32 color)

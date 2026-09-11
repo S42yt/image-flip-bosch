@@ -29,15 +29,15 @@ namespace image_flip_bosch.CLI
       AppConfig config = configStore.Load();
       ImgflipSetup setup = new(configStore);
 
-      if (args.Length > 0 && args[0] == "logout")
+      switch (args.Length)
       {
-        Logger.Info(setup.Clear() ? "Imgflip credentials removed." : "No credentials stored.");
-        return 0;
-      }
-
-      if (args.Length > 0 && args[0] == "login")
-      {
-        if (!setup.PromptInteractive()) return 1;
+        case > 0 when args[0] == "giftest":
+          return await Tests.SixelGifTest.RunAsync(args.Length > 1 ? args[1] : null);
+        case > 0 when args[0] == "logout":
+          Logger.Info(setup.Clear() ? "Imgflip credentials removed." : "No credentials stored.");
+          return 0;
+        case > 0 when args[0] == "login" && !setup.PromptInteractive() && !setup.PromptInteractive():
+          return 1;
       }
 
       await using ImageCache cache = new(
@@ -65,8 +65,7 @@ namespace image_flip_bosch.CLI
 
       int code = await Task.Run(ws.Run);
 
-      //das ändern je nach log level den du brauchst
-      Logger.MinimumLevel = LogLevel.Error;
+      Logger.MinimumLevel = LogLevel.Debug;
       Logger.UseConsole();
       //Logger.Info("Application finished.");
       return code;

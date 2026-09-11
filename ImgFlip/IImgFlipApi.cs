@@ -10,7 +10,7 @@ namespace image_flip_bosch.ImgFlip
      * Reihenfolge (nach Beliebtheit der letzten 30 Tage sortiert) 
      * und JSON-Felder können sich dynamisch ändern.
      */
-    Task<Meme[]> GetMemes();
+    Task<Meme[]> GetMemes(EMemeTyp? type);
     /*
      * Fügt einer Imgflip-Meme-Vorlage Text hinzu. 
      * Erstellte Memes sind per Direkt-URL öffentlich abrufbar (kein privater Modus), 
