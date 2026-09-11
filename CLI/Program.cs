@@ -1,25 +1,22 @@
-using image_flip_bosch.Bot.Utils;
-using image_flip_bosch.CLI.Utils;
-using SharpConsoleUI;
-using SharpConsoleUI.Builders;
-using SharpConsoleUI.Configuration;
-using SharpConsoleUI.Controls;
-using SharpConsoleUI.Core;
-using SharpConsoleUI.Dialogs;
-using SharpConsoleUI.Drivers;
-using SharpConsoleUI.Helpers;
-using SharpConsoleUI.Imaging;
-using SharpConsoleUI.Layout;
-using SharpConsoleUI.Parsing;
-using System;
-using System.IO;
-using System.Threading.Tasks;
-
-
 namespace image_flip_bosch.CLI
 {
+  using image_flip_bosch.CLI.Sixel;
+  using image_flip_bosch.CLI.Utils;
+  using SharpConsoleUI;
+  using SharpConsoleUI.Builders;
+  using SharpConsoleUI.Configuration;
+  using SharpConsoleUI.Controls;
+  using SharpConsoleUI.Core;
+  using SharpConsoleUI.Dialogs;
+  using SharpConsoleUI.Drivers;
+  using SharpConsoleUI.Helpers;
+  using SharpConsoleUI.Layout;
+  using SharpConsoleUI.Parsing;
+  using System;
+  using System.IO;
+  using System.Threading.Tasks;
 
-  public class Program
+  public static class Program
   {
     public static async Task<int> Main(string[] args)
     {
@@ -27,12 +24,14 @@ namespace image_flip_bosch.CLI
 
       await using ImageCache cache = new();
 
+      SixelCapabilities sixel = SixelTerminal.Probe();
+      Logger.Info($"Sixel: supported={sixel.Supported} cell={sixel.CellWidth}x{sixel.CellHeight}");
+
       ConsoleWindowSystem ws = new(
-        new NetConsoleDriver(RenderMode.Buffer),
-        options: new ConsoleWindowSystemOptions(TargetFPS: 60));
+        new SixelDriver(new NetConsoleDriver(RenderMode.Buffer), sixel),
+        options: new ConsoleWindowSystemOptions(TargetFPS: 60, DirtyTrackingMode: DirtyTrackingMode.Cell));
 
       string currentUrl = string.Empty;
-      string? currentPath = null;
       bool busy = false;
 
       MarkupControl log = Controls.Markup("[dim]Enter an image URL and press Enter.[/]").Build();
@@ -43,11 +42,11 @@ namespace image_flip_bosch.CLI
         .WithVerticalAlignment(VerticalAlignment.Fill)
         .Build();
 
-      ImageControl preview = Controls.Image()
-        .Fit()
-        .WithAlignment(HorizontalAlignment.Center)
-        .WithVerticalAlignment(VerticalAlignment.Fill)
-        .Build();
+      ImagePreview preview = new(ws)
+      {
+        HorizontalAlignment = HorizontalAlignment.Stretch, VerticalAlignment = VerticalAlignment.Fill,
+      };
+      preview.LoadFailed += (_, msg) => Say($"[red]Could not render image:[/] {MarkupParser.Escape(msg)}");
 
       GridControl content = Controls.Grid()
         .Columns(GridLength.Star(3), GridLength.Star(2))
@@ -79,6 +78,7 @@ namespace image_flip_bosch.CLI
         .Build();
 
 
+
       StatusBarControl statusBar = Controls.StatusBar()
         .AddLeft("^C", "Copy", () => _ = CopyToClipboardAsync())
         .AddLeft("^S", "Save as", () => _ = SaveAsAsync())
@@ -89,26 +89,45 @@ namespace image_flip_bosch.CLI
 
       win.AddControl(statusBar);
 
+      urlPrompt.Entered += (_, text) => _ = OpenUrlAsync(text);
 
+      win.PreviewKeyPressed += (_, e) =>
+      {
+        if (!e.KeyInfo.Modifiers.HasFlag(ConsoleModifiers.Control)) return;
+        switch (e.KeyInfo.Key)
+        {
+          case ConsoleKey.C:
+            _ = CopyToClipboardAsync();
+            e.Handled = true;
+            break;
+          case ConsoleKey.S:
+            _ = SaveAsAsync();
+            e.Handled = true;
+            break;
+          case ConsoleKey.K:
+            _ = DeleteAsync();
+            e.Handled = true;
+            break;
+          case ConsoleKey.X:
+            ws.Shutdown();
+            e.Handled = true;
+            break;
+        }
+      };
+
+      ws.AddWindow(win);
+      win.State = WindowState.Maximized;
+      win.FocusControl(urlPrompt);
+
+      int code = await Task.Run(() => ws.Run());
+
+      Logger.Info("Application finished.");
+      return code;
 
       void Say(string markup) => ws.InvokeAsync(() => log.AppendLine($"[dim]{DateTime.Now:HH:mm:ss}[/] {markup}"));
 
       void Toast(string message, NotificationSeverity severity) =>
         ws.InvokeAsync(() => ws.ToastService.Show(message, severity));
-
-      async Task LoadPreviewAsync(string path)
-      {
-        try
-        {
-          PixelBuffer pixels = await Task.Run(() => PixelBuffer.FromFile(path));
-          await ws.InvokeAsync(() => preview.Source = pixels);
-          currentPath = path;
-        }
-        catch (Exception ex)
-        {
-          Say($"[red]Could not render image:[/] {MarkupParser.Escape(ex.Message)}");
-        }
-      }
 
       async Task OpenUrlAsync(string url)
       {
@@ -118,12 +137,16 @@ namespace image_flip_bosch.CLI
           Say("[yellow]Please enter a valid absolute URL.[/]");
           return;
         }
-        if (busy) { Say("[yellow]Busy, wait for the current operation.[/]"); return; }
+
+        if (busy)
+        {
+          Say("[yellow]Busy, wait for the current operation.[/]");
+          return;
+        }
 
         busy = true;
         currentUrl = url;
-        currentPath = null;
-        await ws.InvokeAsync(() => preview.Source = null);
+        await ws.InvokeAsync(() => preview.Clear());
 
         try
         {
@@ -138,7 +161,8 @@ namespace image_flip_bosch.CLI
           {
             Say($"[green]In cache:[/] {MarkupParser.Escape(cached)}");
           }
-          await LoadPreviewAsync(cached);
+
+          await preview.LoadWhenReadyAsync(cached);
         }
         catch (Exception ex)
         {
@@ -153,9 +177,13 @@ namespace image_flip_bosch.CLI
 
       async Task CopyToClipboardAsync()
       {
-        if (currentPath is null) { Say("[yellow]Nothing to copy yet.[/]"); return; }
+        if (preview.CurrentPath is null)
+        {
+          Say("[yellow]Nothing to copy yet.[/]");
+          return;
+        }
 
-        bool ok = await ImageClipboard.CopyFileAsync(currentPath);
+        bool ok = await ImageClipboard.CopyFileAsync(preview.CurrentPath);
         if (ok)
         {
           Toast("Image copied to clipboard", NotificationSeverity.Success);
@@ -163,17 +191,21 @@ namespace image_flip_bosch.CLI
           return;
         }
 
-        ClipboardHelper.SetText(currentPath);
+        ClipboardHelper.SetText(preview.CurrentPath);
         Toast("Copied file path instead", NotificationSeverity.Warning);
         Say("Image clipboard unavailable, copied the file path.");
       }
 
       async Task SaveAsAsync()
       {
-        if (currentPath is null) { Say("[yellow]Nothing to save yet.[/]"); return; }
+        if (preview.CurrentPath is null)
+        {
+          Say("[yellow]Nothing to save yet.[/]");
+          return;
+        }
 
         string defaultName = Path.GetFileName(new Uri(currentUrl).AbsolutePath);
-        if (string.IsNullOrWhiteSpace(defaultName)) defaultName = Path.GetFileName(currentPath);
+        if (string.IsNullOrWhiteSpace(defaultName)) defaultName = Path.GetFileName(preview.CurrentPath);
 
         string? target = await FileDialogs.ShowSaveFileAsync(
           ws,
@@ -182,12 +214,16 @@ namespace image_flip_bosch.CLI
           defaultName,
           win);
 
-        if (target is null) { Say("Save cancelled."); return; }
+        if (target is null)
+        {
+          Say("Save cancelled.");
+          return;
+        }
 
         try
         {
           Directory.CreateDirectory(Path.GetDirectoryName(target)!);
-          File.Copy(currentPath, target, overwrite: true);
+          File.Copy(preview.CurrentPath, target, overwrite: true);
           Say($"[green]Saved:[/] {MarkupParser.Escape(target)}");
           Toast("Saved", NotificationSeverity.Success);
         }
@@ -199,7 +235,11 @@ namespace image_flip_bosch.CLI
 
       async Task DeleteAsync()
       {
-        if (currentPath is null) { Say("[yellow]Nothing to delete.[/]"); return; }
+        if (preview.CurrentPath is null)
+        {
+          Say("[yellow]Nothing to delete.[/]");
+          return;
+        }
 
         bool confirmed = await Dialogs.ConfirmAsync(
           ws, "Delete", "Remove this image from the cache?", "Delete", "Cancel",
@@ -208,38 +248,15 @@ namespace image_flip_bosch.CLI
 
         bool removed = cache.Remove(currentUrl);
         Say(removed ? "[green]Deleted from cache.[/]" : "[red]Could not delete.[/]");
-        currentPath = null;
         currentUrl = string.Empty;
         await ws.InvokeAsync(() =>
         {
-          preview.Source = null;
+          preview.Clear();
           urlPrompt.Input = string.Empty;
           win.FocusControl(urlPrompt);
         });
       }
 
-      urlPrompt.Entered += (_, text) => _ = OpenUrlAsync(text);
-
-      win.PreviewKeyPressed += (_, e) =>
-      {
-        if (!e.KeyInfo.Modifiers.HasFlag(ConsoleModifiers.Control)) return;
-        switch (e.KeyInfo.Key)
-        {
-          case ConsoleKey.C: _ = CopyToClipboardAsync(); e.Handled = true; break;
-          case ConsoleKey.S: _ = SaveAsAsync(); e.Handled = true; break;
-          case ConsoleKey.K: _ = DeleteAsync(); e.Handled = true; break;
-          case ConsoleKey.X: ws.Shutdown(); e.Handled = true; break;
-        }
-      };
-
-      ws.AddWindow(win);
-      win.State = WindowState.Maximized;
-      win.FocusControl(urlPrompt);
-
-      int code = await Task.Run(() => ws.Run());
-
-      Logger.Info("Application finished.");
-      return code;
     }
   }
-}
+};

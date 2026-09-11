@@ -1,11 +1,11 @@
-namespace image_flip_bosch.Bot.Utils
+namespace image_flip_bosch.CLI.Utils
 {
   using System;
   using System.IO;
   using System.Net.Http;
   using System.Threading;
   using System.Threading.Tasks;
-
+  
   public static class FileDownloader
   {
     private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromMinutes(5) };

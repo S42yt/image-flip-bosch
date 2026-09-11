@@ -1,28 +1,15 @@
-using SharpConsoleUI;
-using SharpConsoleUI.Controls;
-using SharpConsoleUI.Imaging;
-using System;
-using System.IO;
-using System.Threading;
-using System.Threading.Tasks;
-
-
 //mal gucken ob das so bleibt oder ob die andere version geiler ist mashallah :P
 
 namespace image_flip_bosch.CLI.Utils
 {
-  public static class ImageDecoder
-  {
-    public static PixelBuffer FromBytes(byte[] data)
-    {
-      using MemoryStream ms = new(data);
-      return PixelBuffer.FromStream(ms);
-    }
-
-    public static PixelBuffer FromFile(string path) => PixelBuffer.FromFile(path);
-  }
-
-  public class ImagePreview : ImageControl
+  using image_flip_bosch.CLI.Sixel;
+  using SharpConsoleUI;
+  using System;
+  using System.IO;
+  using System.Threading;
+  using System.Threading.Tasks;
+  
+  public class ImagePreview : SixelImageControl
   {
     private readonly ConsoleWindowSystem _ws;
     private int _loadVersion;
@@ -30,7 +17,7 @@ namespace image_flip_bosch.CLI.Utils
     public ImagePreview(ConsoleWindowSystem ws)
     {
       _ws = ws;
-      ScaleMode = ImageScaleMode.Fit;
+      EncodeFailed += (_, msg) => LoadFailed?.Invoke(this, msg);
     }
 
     public string? CurrentPath { get; private set; }
@@ -41,7 +28,7 @@ namespace image_flip_bosch.CLI.Utils
     {
       try
       {
-        Source = ImageDecoder.FromFile(path);
+        SetImage(File.ReadAllBytes(path));
         CurrentPath = path;
         return true;
       }
@@ -81,17 +68,17 @@ namespace image_flip_bosch.CLI.Utils
     public void Clear()
     {
       Interlocked.Increment(ref _loadVersion);
-      Source = null;
+      SetImage(null);
       CurrentPath = null;
     }
 
     private async Task LoadCoreAsync(string path, int version, CancellationToken ct)
     {
-      PixelBuffer? pixels = null;
+      byte[]? data = null;
       string? error = null;
       try
       {
-        pixels = ImageDecoder.FromFile(path);
+        data = await File.ReadAllBytesAsync(path, ct);
       }
       catch (Exception ex)
       {
@@ -103,13 +90,13 @@ namespace image_flip_bosch.CLI.Utils
       await _ws.InvokeAsync(() =>
       {
         if (version != _loadVersion) return;
-        if (pixels is null)
+        if (data is null)
         {
           Clear();
           LoadFailed?.Invoke(this, error ?? "Unknown error");
           return;
         }
-        Source = pixels;
+        SetImage(data);
         CurrentPath = path;
       });
     }

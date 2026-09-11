@@ -1,4 +1,4 @@
-namespace image_flip_bosch.Bot.Utils
+namespace image_flip_bosch.CLI.Utils
 {
   using System;
   using System.Collections.Concurrent;
