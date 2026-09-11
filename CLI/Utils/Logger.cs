@@ -20,7 +20,7 @@ namespace image_flip_bosch.CLI.Utils
 
       lock (Sync)
       {
-        var previous = Console.ForegroundColor;
+        ConsoleColor previous = Console.ForegroundColor;
         Console.ForegroundColor = level switch
         {
           Level.Debug => ConsoleColor.DarkGray,
