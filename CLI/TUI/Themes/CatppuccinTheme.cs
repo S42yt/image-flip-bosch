@@ -155,7 +155,7 @@ namespace image_flip_bosch.CLI.TUI.Themes
 
       ToolbarBackgroundColor = Color.FromHex("#ff00ff");
       ToolbarForegroundColor = Color.FromHex("#ff00ff");
-      SeparatorForegroundColor = Color.FromHex("#ff00ff");
+      SeparatorForegroundColor = TPalette.Surface0;
 
       StatusBarBackgroundColor = TPalette.Surface0;
       StatusBarForegroundColor = TPalette.Subtext0;
