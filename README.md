@@ -1,2 +1,7 @@
-GUI Docs: https://nickprotop.github.io/ConsoleEx/docfx/_site/BUILDERS.html
-API Docs von ImgFlip: https://imgflip.com/api
+# Img Flip CLI 
+
+Dieses Tool ermöglicht dir memes direkt über dein Terminal zu erstellen!
+
+Alle regulären Features von ImgFlip sind supported.
+
+## Template Browser
