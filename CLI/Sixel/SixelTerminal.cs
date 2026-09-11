@@ -1,9 +1,10 @@
-﻿namespace image_flip_bosch.CLI.Sixel
+﻿using System;
+using System.Diagnostics;
+using System.Runtime.InteropServices;
+using System.Text;
+
+namespace image_flip_bosch.CLI.Sixel
 {
-  using System;
-  using System.Diagnostics;
-  using System.Runtime.InteropServices;
-  using System.Text;
 
   public sealed record SixelCapabilities(bool Supported, int CellWidth, int CellHeight)
   {

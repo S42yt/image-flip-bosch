@@ -2,6 +2,7 @@ namespace image_flip_bosch.CLI.TUI
 {
   using image_flip_bosch.CLI.Config;
   using image_flip_bosch.CLI.Utils;
+  using image_flip_bosch.CLI.Config.ImgFlip;
   using image_flip_bosch.ImgFlip;
   using SharpConsoleUI;
   using SharpConsoleUI.Builders;
@@ -22,7 +23,8 @@ namespace image_flip_bosch.CLI.TUI
     private readonly ConsoleWindowSystem _ws;
     private readonly ImageCache _cache;
     private readonly ImgflipSession _imgflip;
-    private readonly ImgflipConfig _options;
+    private readonly ConfigStore<AppConfig> _configStore;
+    private readonly ImgflipSetup _setup;
 
     private readonly PromptControl _filter;
     private readonly ListControl _templates;
@@ -38,12 +40,13 @@ namespace image_flip_bosch.CLI.TUI
     private string? _resultUrl;
     private bool _busy;
 
-    public MainScreen(ConsoleWindowSystem ws, ImageCache cache, ImgflipSession imgflip, ImgflipConfig options)
+    public MainScreen(ConsoleWindowSystem ws, ImageCache cache, ImgflipSession imgflip, ConfigStore<AppConfig> configStore, ImgflipSetup setup)
     {
       _ws = ws;
       _cache = cache;
       _imgflip = imgflip;
-      _options = options;
+      _configStore = configStore;
+      _setup = setup;
 
       _filter = Controls.Prompt(" Filter ")
         .WithPlaceholder("type to filter templates")
@@ -124,6 +127,7 @@ namespace image_flip_bosch.CLI.TUI
         .AddLeft("^C", "Copy URL", () => CopyResultUrl())
         .AddLeft("^S", "Save", () => _ = SaveResultAsync())
         .AddLeft("^R", "Reload", () => _ = LoadTemplatesAsync())
+        .AddLeft("^O", "Settings", () => OpenSettings())
         .AddRight("^X", "Quit", () => _ws.Shutdown())
         .StickyBottom()
         .Build();
@@ -147,6 +151,8 @@ namespace image_flip_bosch.CLI.TUI
       _ws.AddWindow(_window);
       _window.State = WindowState.Maximized;
       _window.FocusControl(_filter);
+      if (!_setup.IsConfigured)
+        Log("[dim]No Imgflip login yet. Browse freely, press ^O to add one before creating memes.[/]");
       _ = LoadTemplatesAsync();
     }
 
@@ -165,9 +171,15 @@ namespace image_flip_bosch.CLI.TUI
         case ConsoleKey.C: CopyResultUrl(); e.Handled = true; break;
         case ConsoleKey.S: _ = SaveResultAsync(); e.Handled = true; break;
         case ConsoleKey.R: _ = LoadTemplatesAsync(); e.Handled = true; break;
+        case ConsoleKey.O: OpenSettings(); e.Handled = true; break;
         case ConsoleKey.X: _ws.Shutdown(); e.Handled = true; break;
       }
     }
+
+    private void OpenSettings() =>
+      new SettingsScreen(_ws, _configStore, _setup, _window, () => Log(_setup.IsConfigured
+        ? $"Logged in as [cyan]{MarkupParser.Escape(_setup.Username!)}[/]."
+        : "[yellow]No Imgflip login. Browsing only.[/]")).Show();
 
     private void Log(string markup) =>
       _ws.InvokeAsync(() => _log.AppendLine($"[dim]{DateTime.Now:HH:mm:ss}[/] {markup}"));
@@ -235,6 +247,12 @@ namespace image_flip_bosch.CLI.TUI
     {
       if (_busy) { Log("[yellow]Busy.[/]"); return; }
       if (_selected is null) { Log("[yellow]Select a template first.[/]"); return; }
+      if (!_setup.IsConfigured)
+      {
+        Log("[yellow]Creating memes needs an Imgflip login. Opening settings.[/]");
+        OpenSettings();
+        return;
+      }
 
       string top = _topText.Input.Trim();
       string bottom = _bottomText.Input.Trim();
@@ -249,12 +267,13 @@ namespace image_flip_bosch.CLI.TUI
 
       try
       {
+        ImgflipConfig options = _configStore.Load().Imgflip;
         string url = await _imgflip.CaptionImage(
           _selected.Id,
           top,
           bottom,
-          _options.MaxFontSize,
-          _options.NoWatermark ? true : null);
+          options.MaxFontSize,
+          options.NoWatermark ? true : null);
 
         _resultUrl = url;
         Log($"[green]Created:[/] {MarkupParser.Escape(url)}");

@@ -1,7 +1,8 @@
+using System.Diagnostics;
+using System.Runtime.InteropServices;
+
 namespace image_flip_bosch.CLI.Utils
 {
-  using System.Diagnostics;
-  using System.Runtime.InteropServices;
 
   public static class ImageClipboard
   {

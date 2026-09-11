@@ -1,9 +1,10 @@
+using image_flip_bosch.ImgFlip;
+using System;
+using System.IO;
+using System.Text;
+
 namespace image_flip_bosch.CLI.Config.ImgFlip
 {
-  using image_flip_bosch.ImgFlip;
-  using System;
-  using System.IO;
-  using System.Text;
 
   public sealed class ImgflipSetup
   {

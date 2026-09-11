@@ -1,17 +1,16 @@
-﻿namespace image_flip_bosch.CLI.Sixel
+﻿using SharpConsoleUI;
+using SharpConsoleUI.Core;
+using SharpConsoleUI.Drivers;
+using SharpConsoleUI.Layout;
+using System;
+using System.Collections.Generic;
+using System.Drawing;
+using System.IO;
+using System.Text;
+using Size = SharpConsoleUI.Helpers.Size;
+
+namespace image_flip_bosch.CLI.Sixel
 {
-  using SharpConsoleUI;
-  using SharpConsoleUI.Core;
-  using SharpConsoleUI.Drivers;
-  using SharpConsoleUI.Layout;
-  using System;
-  using System.Collections.Generic;
-  using System.Drawing;
-  using System.IO;
-  using System.Text;
-  using Size = SharpConsoleUI.Helpers.Size;
-
-
   public sealed class SixelDriver : IConsoleDriver
   {
     private sealed class Entry

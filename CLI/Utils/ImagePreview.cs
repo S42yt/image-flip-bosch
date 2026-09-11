@@ -1,13 +1,13 @@
 //mal gucken ob das so bleibt oder ob die andere version geiler ist mashallah :P
+using image_flip_bosch.CLI.Sixel;
+using SharpConsoleUI;
+using System;
+using System.IO;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace image_flip_bosch.CLI.Utils
 {
-  using image_flip_bosch.CLI.Sixel;
-  using SharpConsoleUI;
-  using System;
-  using System.IO;
-  using System.Threading;
-  using System.Threading.Tasks;
   
   public class ImagePreview : SixelImageControl
   {

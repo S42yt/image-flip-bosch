@@ -1,10 +1,11 @@
+using System;
+using System.IO;
+using System.Text;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+
 namespace image_flip_bosch.CLI.Config
 {
-  using System;
-  using System.IO;
-  using System.Text;
-  using System.Text.Json;
-  using System.Text.Json.Serialization;
 
   public static class ConfigPaths
   {

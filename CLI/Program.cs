@@ -1,18 +1,18 @@
 using image_flip_bosch.CLI.Config.ImgFlip;
+using image_flip_bosch.CLI.Utils;
+using image_flip_bosch.CLI.Config;
+using image_flip_bosch.CLI.Sixel;
+using image_flip_bosch.CLI.TUI;
+using image_flip_bosch.CLI.Utils;
+using image_flip_bosch.ImgFlip;
+using SharpConsoleUI;
+using SharpConsoleUI.Configuration;
+using SharpConsoleUI.Drivers;
+using System;
+using System.Threading.Tasks;
 
 namespace image_flip_bosch.CLI
 {
-  using image_flip_bosch.CLI.Config;
-  using image_flip_bosch.CLI.Sixel;
-  using image_flip_bosch.CLI.TUI;
-  using image_flip_bosch.CLI.Utils;
-  using image_flip_bosch.ImgFlip;
-  using SharpConsoleUI;
-  using SharpConsoleUI.Configuration;
-  using SharpConsoleUI.Drivers;
-  using System;
-  using System.Threading.Tasks;
-
   public class Program
   {
     public static async Task<int> Main(string[] args)
@@ -29,7 +29,7 @@ namespace image_flip_bosch.CLI
         return 0;
       }
 
-      if (args.Length > 0 && args[0] == "login" || !setup.IsConfigured)
+      if (args.Length > 0 && args[0] == "login")
       {
         if (!setup.PromptInteractive()) return 1;
       }
@@ -48,7 +48,7 @@ namespace image_flip_bosch.CLI
         new SixelDriver(new NetConsoleDriver(RenderMode.Buffer), sixel),
         options: new ConsoleWindowSystemOptions(TargetFPS: 60, DirtyTrackingMode: DirtyTrackingMode.Cell));
 
-      MainScreen main = new(ws, cache, imgflip, config.Imgflip);
+      MainScreen main = new(ws, cache, imgflip, configStore, setup);
       main.Show();
 
       int code = await Task.Run(() => ws.Run());

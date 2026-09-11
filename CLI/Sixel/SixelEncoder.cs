@@ -1,13 +1,12 @@
-﻿namespace image_flip_bosch.CLI.Sixel
+﻿using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.PixelFormats;
+using SixLabors.ImageSharp.Processing;
+using SixLabors.ImageSharp.Processing.Processors.Quantization;
+using System;
+using System.Text;
+
+namespace image_flip_bosch.CLI.Sixel
 {
-  using SixLabors.ImageSharp;
-  using SixLabors.ImageSharp.PixelFormats;
-  using SixLabors.ImageSharp.Processing;
-  using SixLabors.ImageSharp.Processing.Processors.Quantization;
-  using System;
-  using System.Text;
-
-
   public sealed record SixelFrame(string Data, int Cols, int Rows, int PixelWidth, int PixelHeight);
 
   public static class SixelEncoder

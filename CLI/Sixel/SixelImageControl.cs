@@ -1,11 +1,12 @@
-﻿namespace image_flip_bosch.CLI.Sixel
+﻿using SharpConsoleUI;
+using SharpConsoleUI.Controls;
+using SharpConsoleUI.Layout;
+using System;
+using System.Threading;
+using System.Threading.Tasks;
+
+namespace image_flip_bosch.CLI.Sixel
 {
-  using SharpConsoleUI;
-  using SharpConsoleUI.Controls;
-  using SharpConsoleUI.Layout;
-  using System;
-  using System.Threading;
-  using System.Threading.Tasks;
 
   public class SixelImageControl : BaseControl
   {
