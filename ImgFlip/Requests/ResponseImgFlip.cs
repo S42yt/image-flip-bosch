@@ -13,7 +13,7 @@ namespace image_flip_bosch.ImgFlip.Requests
     [JsonPropertyName("data")]
     public ResponseImgFlipData? ResponseImgFlipData { get; init; } = null;
   }
-  public abstract class ResponseImgFlipData
+  public class ResponseImgFlipData
   {
     [JsonPropertyName("url")]
     public string? Url { get; set; } = null;

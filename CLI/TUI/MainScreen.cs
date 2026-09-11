@@ -94,9 +94,9 @@ namespace image_flip_bosch.CLI.TUI
       content.Place(_templates, 0, 0);
       content.Place(_preview, 0, 1);
       content.Place(side, 0, 2);
-      content.Cell(0, 0).Border = BorderStyle.Rounded;
-      content.Cell(0, 1).Border = BorderStyle.Rounded;
-      content.Cell(0, 2).Border = BorderStyle.Rounded;
+      content.Cell(0, 0).Border = BorderStyle.Frameless;
+      content.Cell(0, 1).Border = BorderStyle.DoubleLine;
+      content.Cell(0, 2).Border = BorderStyle.Frameless;
 
       StatusBarControl statusBar = Controls.StatusBar()
         .AddLeft("F5", "Caption", () => _ = OpenCaptionsAsync())
@@ -104,7 +104,7 @@ namespace image_flip_bosch.CLI.TUI
         .AddLeft("F7", "Save image", () => _ = SaveCurrentAsync())
         .AddLeft("F8", "Settings", OpenSettings)
         .AddLeft("F9", "Reload", () => _ = LoadTemplatesAsync())
-        .AddRight("F10", "Quit", () => _ws.Shutdown())
+        .AddRight("F4", "Quit", () => _ws.Shutdown())
         .StickyBottom()
         .Build();
 
@@ -155,7 +155,7 @@ namespace image_flip_bosch.CLI.TUI
         case ConsoleKey.F7: _ = SaveCurrentAsync(); e.Handled = true; break;
         case ConsoleKey.F8: OpenSettings(); e.Handled = true; break;
         case ConsoleKey.F9: _ = LoadTemplatesAsync(); e.Handled = true; break;
-        case ConsoleKey.F10: _ws.Shutdown(); e.Handled = true; break;
+        case ConsoleKey.F4: _ws.Shutdown(); e.Handled = true; break;
         case ConsoleKey.C when ctrl: CopyResultUrl(); e.Handled = true; break;
         case ConsoleKey.S when ctrl: _ = SaveCurrentAsync(); e.Handled = true; break;
         case ConsoleKey.R when ctrl: _ = LoadTemplatesAsync(); e.Handled = true; break;

@@ -39,7 +39,7 @@ namespace image_flip_bosch.CLI.Utils.Native
       {
         try { File.Delete(tempPath); }
         catch
-        //warum heult Rider eig wenn ich das nicht hinschreibe VALLAH macht kein sinn, egal
+        //warum heult Rider eig, wenn ich das nicht hinschreibe VALLAH macht kein sinn, egal
         { /*ignore*/ }
         throw;
       }
