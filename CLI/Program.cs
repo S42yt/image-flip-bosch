@@ -1,4 +1,3 @@
-using image_flip_bosch.CLI.Utils;
 using image_flip_bosch.CLI.Utils.Image;
 using image_flip_bosch.CLI.Config;
 using image_flip_bosch.CLI.Config.ImgFlip;
@@ -9,16 +8,19 @@ using image_flip_bosch.ImgFlip.Auth;
 using SharpConsoleUI;
 using SharpConsoleUI.Configuration;
 using SharpConsoleUI.Drivers;
+using System.Text;
+
+using image_flip_bosch.CLI.Utils;
 
 namespace image_flip_bosch.CLI
 {
 
-  public abstract class Program
+  public class Program
   {
     public static async Task<int> Main(string[] args)
     {
-      //Console.OutputEncoding = Encoding.UTF8;
-      //Console.InputEncoding = Encoding.UTF8;
+      Console.OutputEncoding = Encoding.UTF8;
+      Console.InputEncoding = Encoding.UTF8;
 
       Logger.Info("Starting the application...");
 
@@ -47,6 +49,8 @@ namespace image_flip_bosch.CLI
       SixelCapabilities sixel = SixelTerminal.Probe();
       Logger.Info($"Sixel: supported={sixel.Supported} cell={sixel.CellWidth}x{sixel.CellHeight}");
 
+      Logger.UseFile(ConfigPaths.File("app.log"));
+
       ConsoleWindowSystem ws = new(
         new SixelDriver(new NetConsoleDriver(RenderMode.Buffer), sixel),
         options: new ConsoleWindowSystemOptions(TargetFPS: 60, DirtyTrackingMode: DirtyTrackingMode.Cell));
@@ -54,8 +58,11 @@ namespace image_flip_bosch.CLI
       MainScreen main = new(ws, cache, imgflip, configStore, setup);
       main.Show();
 
-      int code = await Task.Run(ws.Run);
+      Logger.MinimumLevel = LogLevel.Error;
+      //ConsoleTap.Start(ConfigPaths.File("tap.log"));
+      int code = await Task.Run(() => ws.Run());
 
+      Logger.UseConsole();
       Logger.Info("Application finished.");
       return code;
     }

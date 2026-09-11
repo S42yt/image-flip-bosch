@@ -1,37 +1,94 @@
+using System;
+using System.IO;
+using System.Text;
+
 namespace image_flip_bosch.CLI.Utils
 {
+
+  public enum LogLevel
+  {
+    Debug,
+    Info,
+    Warn,
+    Error,
+  }
+
+  public sealed record LogEntry(DateTime Time, LogLevel Level, string Message, Exception? Exception);
+
   public static class Logger
   {
-    public enum Level { Debug, Info, Warn, Error }
+    private static readonly object Lock = new();
+    private static TextWriter _writer = Console.Out;
+    private static StreamWriter? _fileWriter;
+    private static bool _consoleOutput = true;
 
-    public static Level MinLevel { get; set; } = Level.Debug;
+    public static LogLevel MinimumLevel { get; set; } = LogLevel.Debug;
 
-    private static readonly Lock Sync = new();
+    public static event Action<LogEntry>? EntryLogged;
 
-    public static void Debug(string message) => Write(Level.Debug, message);
-    public static void Info(string message) => Write(Level.Info, message);
-    public static void Warn(string message) => Write(Level.Warn, message);
-    public static void Error(string message, Exception? ex = null) =>
-        Write(Level.Error, ex is null ? message : $"{message}{Environment.NewLine}{ex}");
-
-    private static void Write(Level level, string message)
+    public static void UseConsole()
     {
-      if (level < MinLevel) return;
-
-      lock (Sync)
+      lock (Lock)
       {
-        ConsoleColor previous = Console.ForegroundColor;
-        Console.ForegroundColor = level switch
-        {
-          Level.Debug => ConsoleColor.DarkGray,
-          Level.Info => ConsoleColor.Cyan,
-          Level.Warn => ConsoleColor.Yellow,
-          Level.Error => ConsoleColor.Red,
-          _ => previous
-        };
-        Console.WriteLine($"[{DateTime.Now:HH:mm:ss.fff}] [{level.ToString().ToUpperInvariant(),-5}] {message}");
-        Console.ForegroundColor = previous;
+        _consoleOutput = true;
+        _writer = Console.Out;
       }
     }
+
+    public static void UseFile(string path, bool append = true)
+    {
+      lock (Lock)
+      {
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        _fileWriter?.Dispose();
+        _fileWriter = new StreamWriter(path, append, new UTF8Encoding(false)) { AutoFlush = true };
+        _writer = _fileWriter;
+        _consoleOutput = false;
+      }
+    }
+
+    public static void Silence()
+    {
+      lock (Lock)
+      {
+        _writer = TextWriter.Null;
+        _consoleOutput = false;
+      }
+    }
+
+    public static void Debug(string message) => Write(LogLevel.Debug, message, null);
+    public static void Info(string message) => Write(LogLevel.Info, message, null);
+    public static void Warn(string message) => Write(LogLevel.Warn, message, null);
+    public static void Error(string message, Exception? exception = null) => Write(LogLevel.Error, message, exception);
+
+    private static void Write(LogLevel level, string message, Exception? exception)
+    {
+      if (level < MinimumLevel) return;
+
+      LogEntry entry = new(DateTime.Now, level, message, exception);
+      string line = $"[{entry.Time:HH:mm:ss.fff}] [{Tag(level)}] {message}";
+      if (exception is not null) line += Environment.NewLine + exception;
+
+      lock (Lock)
+      {
+        try
+        {
+          _writer.WriteLine(line);
+          if (_consoleOutput) _writer.Flush();
+        }
+        catch (IOException) { }
+        catch (ObjectDisposedException) { }
+      }
+
+      EntryLogged?.Invoke(entry);
+    }
+
+    private static string Tag(LogLevel level) => level switch
+    {
+      LogLevel.Debug => "DEBUG",
+      LogLevel.Info => "INFO ",
+      LogLevel.Warn => "WARN ",
+      _ => "ERROR",
+    };
   }
 }
