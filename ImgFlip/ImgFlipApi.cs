@@ -1,3 +1,4 @@
+using System.Net.Http.Json;
 using System.Text.Json;
 
 namespace image_flip_bosch.ImgFlip
@@ -10,6 +11,25 @@ namespace image_flip_bosch.ImgFlip
       Timeout = TimeSpan.FromSeconds(15),
     };
 
+    static string Flag(bool value) => value ? "1" : "0";
+
+    static string TypeValue(EMemeTyp type) => type switch
+    {
+      EMemeTyp.Gif => "gif",
+      EMemeTyp.ImageAndGif => "image,gif",
+      _ => "image",
+    };
+
+    static string ModelValue(EAiModel model) => model == EAiModel.Classic ? "classic" : "openai";
+
+    static List<KeyValuePair<string, string>> Auth(string username, string password)
+    {
+      var parameters = new List<KeyValuePair<string, string>>();
+      if (!string.IsNullOrEmpty(username)) parameters.Add(new("username", username));
+      if (!string.IsNullOrEmpty(password)) parameters.Add(new("password", password));
+      return parameters;
+    }
+
     static void AddCaptionBoxes(
       List<KeyValuePair<string, string>> parameters,
       MemeCreationBox[]? boxes = null)
@@ -19,14 +39,24 @@ namespace image_flip_bosch.ImgFlip
         foreach ((int idx, MemeCreationBox? box) in boxesArr.Index())
         {
           parameters.Add(new($"boxes[{idx}][text]", box.Text));
-          parameters.Add(new($"boxes[{idx}][x]", box.X.ToString()));
-          parameters.Add(new($"boxes[{idx}][y]", box.Y.ToString()));
-          parameters.Add(new($"boxes[{idx}][width]", box.Width.ToString()));
-          parameters.Add(new($"boxes[{idx}][height]", box.Height.ToString()));
-          parameters.Add(new($"boxes[{idx}][color]", box.Color));
-          parameters.Add(new($"boxes[{idx}][outline_color]", box.OutlineColor));
+          if (box.X is int x) parameters.Add(new($"boxes[{idx}][x]", x.ToString()));
+          if (box.Y is int y) parameters.Add(new($"boxes[{idx}][y]", y.ToString()));
+          if (box.Width is int w) parameters.Add(new($"boxes[{idx}][width]", w.ToString()));
+          if (box.Height is int h) parameters.Add(new($"boxes[{idx}][height]", h.ToString()));
+          if (box.Color is string color) parameters.Add(new($"boxes[{idx}][color]", color));
+          if (box.OutlineColor is string outline) parameters.Add(new($"boxes[{idx}][outline_color]", outline));
         }
       }
+    }
+
+    static ResponseImgFlipData Unwrap(ResponseImgFlip? res)
+    {
+      if (res is null)
+        throw new JsonException("Failed to deserialize Imgflip response");
+      if (!res.Success)
+        throw new ImgFlipException(res.ErrorMessage ?? "Imgflip returned success=false without a message");
+      return res.ResponseImgFlipData ??
+        throw new ImgFlipException("Imgflip returned success=true without data");
     }
 
     async Task<ResponseImgFlipData> FetchData(
@@ -39,20 +69,13 @@ namespace image_flip_bosch.ImgFlip
 
       response.EnsureSuccessStatusCode();
 
-      ResponseImgFlip res = await response.Content.ReadFromJsonAsync<ResponseImgFlip>() ??
-        throw new JsonException("Failed to deserialize JSON");
-      return res.ResponseImgFlipData ??
-        throw new JsonException("Invalid JSON");
+      return Unwrap(await response.Content.ReadFromJsonAsync<ResponseImgFlip>());
     }
 
     public async Task<Meme[]> GetMemes()
     {
-      ResponseImgFlip res = await httpClient.GetFromJsonAsync<ResponseImgFlip>("get_memes") ??
-        throw new JsonException("Failed to deserialize JSON");
-      ResponseImgFlipData data = res.ResponseImgFlipData ??
-        throw new JsonException("Invalid JSON data");
-      return data.Memes ??
-        throw new JsonException("Invalid JSON data");
+      ResponseImgFlipData data = Unwrap(await httpClient.GetFromJsonAsync<ResponseImgFlip>("get_memes"));
+      return data.Memes ?? throw new ImgFlipException("get_memes returned no memes");
     }
 
     public async Task<string> CaptionImage(
@@ -65,24 +88,26 @@ namespace image_flip_bosch.ImgFlip
       bool? noWatermark = null,
       MemeCreationBox[]? boxes = null)
     {
-      var parameters = new List<KeyValuePair<string, string>>
+      var parameters = Auth(username, password);
+      parameters.Add(new("template_id", templateId));
+
+      if (boxes is { Length: > 0 })
       {
-        new("template_id", templateId),
-        new("username", username),
-        new("password", password),
-        new("text0", text0),
-        new("text1", text1)
-      };
+        AddCaptionBoxes(parameters, boxes);
+      }
+      else
+      {
+        parameters.Add(new("text0", text0));
+        parameters.Add(new("text1", text1));
+      }
 
       if (maxFontSize is int maxFontSizeVal)
         parameters.Add(new("max_font_size", maxFontSizeVal.ToString()));
       if (noWatermark is bool noWatermarkVal)
-        parameters.Add(new("no_watermark", noWatermarkVal.ToString()));
-
-      AddCaptionBoxes(parameters, boxes);
+        parameters.Add(new("no_watermark", Flag(noWatermarkVal)));
 
       ResponseImgFlipData data = await FetchData("caption_image", parameters);
-      return data.Url ?? throw new JsonException("Invalid JSON");
+      return data.Url ?? throw new ImgFlipException("caption_image returned no url");
     }
 
     public async Task<string> CaptionGif(
@@ -93,22 +118,18 @@ namespace image_flip_bosch.ImgFlip
       bool? noWatermark = null,
       MemeCreationBox[]? boxes = null)
     {
-      var parameters = new List<KeyValuePair<string, string>>
-      {
-        new("template_id", templateId),
-        new("username", username),
-        new("password", password),
-      };
+      var parameters = Auth(username, password);
+      parameters.Add(new("template_id", templateId));
 
       if (maxFontSize is int maxFontSizeVal)
         parameters.Add(new("max_font_size", maxFontSizeVal.ToString()));
       if (noWatermark is bool noWatermarkVal)
-        parameters.Add(new("no_watermark", noWatermarkVal.ToString()));
+        parameters.Add(new("no_watermark", Flag(noWatermarkVal)));
 
       AddCaptionBoxes(parameters, boxes);
 
       ResponseImgFlipData data = await FetchData("caption_gif", parameters);
-      return data.Url ?? throw new JsonException("Invalid JSON");
+      return data.Url ?? throw new ImgFlipException("caption_gif returned no url");
     }
 
     public async Task<Meme[]> SearchMemes(
@@ -118,20 +139,16 @@ namespace image_flip_bosch.ImgFlip
       EMemeTyp? type = null,
       bool? includeNsfw = null)
     {
-      var parameters = new List<KeyValuePair<string, string>>
-      {
-        new("username", username),
-        new("password", password),
-        new("query", query),
-      };
+      var parameters = Auth(username, password);
+      parameters.Add(new("query", query));
 
       if (type is EMemeTyp typeVal)
-        parameters.Add(new("type", typeVal.ToString()));
+        parameters.Add(new("type", TypeValue(typeVal)));
       if (includeNsfw is bool includeNsfwVal)
-        parameters.Add(new("include_nsfw", includeNsfwVal.ToString()));
+        parameters.Add(new("include_nsfw", Flag(includeNsfwVal)));
 
       ResponseImgFlipData data = await FetchData("search_memes", parameters);
-      return data.Memes ?? throw new JsonException("Invalid JSON");
+      return data.Memes ?? throw new ImgFlipException("search_memes returned no memes");
     }
 
     public async Task<Meme> GetMeme(
@@ -139,15 +156,11 @@ namespace image_flip_bosch.ImgFlip
       string password,
       string templateId)
     {
-      var parameters = new List<KeyValuePair<string, string>>
-      {
-        new("username", username),
-        new("password", password),
-        new("template_id", templateId),
-      };
+      var parameters = Auth(username, password);
+      parameters.Add(new("template_id", templateId));
 
       ResponseImgFlipData data = await FetchData("get_meme", parameters);
-      return data.Meme ?? throw new JsonException("Invalid JSON");
+      return data.Meme ?? throw new ImgFlipException("get_meme returned no meme");
     }
 
     public async Task<string> AutoMeme(
@@ -156,18 +169,14 @@ namespace image_flip_bosch.ImgFlip
       string text,
       bool? noWatermark = null)
     {
-      var parameters = new List<KeyValuePair<string, string>>
-      {
-        new("username", username),
-        new("password", password),
-        new("text", text),
-      };
+      var parameters = Auth(username, password);
+      parameters.Add(new("text", text));
 
       if (noWatermark is bool noWatermarkVal)
-        parameters.Add(new("no_watermark", noWatermarkVal.ToString()));
+        parameters.Add(new("no_watermark", Flag(noWatermarkVal)));
 
       ResponseImgFlipData data = await FetchData("automeme", parameters);
-      return data.Url ?? throw new JsonException("Invalid JSON");
+      return data.Url ?? throw new ImgFlipException("automeme returned no url");
     }
 
     public async Task<string> AiMeme(
@@ -178,23 +187,19 @@ namespace image_flip_bosch.ImgFlip
       string? prefixText = null,
       bool? noWatermark = null)
     {
-      var parameters = new List<KeyValuePair<string, string>>
-      {
-        new("username", username),
-        new("password", password),
-      };
+      var parameters = Auth(username, password);
 
       if (model is EAiModel modelVal)
-        parameters.Add(new("model", modelVal.ToString()));
+        parameters.Add(new("model", ModelValue(modelVal)));
       if (templateId is int templateIdVal)
         parameters.Add(new("template_id", templateIdVal.ToString()));
       if (prefixText is string prefixTextVal)
         parameters.Add(new("prefix_text", prefixTextVal));
       if (noWatermark is bool noWatermarkVal)
-        parameters.Add(new("no_watermark", noWatermarkVal.ToString()));
+        parameters.Add(new("no_watermark", Flag(noWatermarkVal)));
 
       ResponseImgFlipData data = await FetchData("ai_meme", parameters);
-      return data.Url ?? throw new JsonException("Invalid JSON");
+      return data.Url ?? throw new ImgFlipException("ai_meme returned no url");
     }
   }
 }

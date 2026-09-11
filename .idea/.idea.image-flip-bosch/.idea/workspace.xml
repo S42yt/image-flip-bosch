@@ -26,8 +26,8 @@
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
   </component>
   <component name="HighlightingSettingsPerFile">
-    <setting file="file://$APPLICATION_CONFIG_DIR$/resharper-host/SourcesCache/42e695fed48c7cba6288e15749f4efdaec4eaf40d798ad7e39e257517a38d/IConsoleDriver.cs" root0="SKIP_HIGHLIGHTING" />
-    <setting file="file://$APPLICATION_CONFIG_DIR$/resharper-host/SourcesCache/801bb4428e44c55f675dbe913b7985844c57a25265cf27e405a6025773a5f/PaddingMode.cs" root0="SKIP_HIGHLIGHTING" />
+    <setting file="file://$APPLICATION_CONFIG_DIR$/resharper-host/SourcesCache/42e695fed48c7cba6288e15749f4efdaec4eaf40d798ad7e39e257517a38d/IConsoleDriver.cs" root0="FORCE_HIGHLIGHTING" />
+    <setting file="file://$APPLICATION_CONFIG_DIR$/resharper-host/SourcesCache/801bb4428e44c55f675dbe913b7985844c57a25265cf27e405a6025773a5f/PaddingMode.cs" root0="FORCE_HIGHLIGHTING" />
     <setting file="file://$PROJECT_DIR$/CLI/Config/AppConfig.cs" root0="FORCE_HIGHLIGHTING" />
     <setting file="file://$PROJECT_DIR$/CLI/Config/ConfigManager.cs" root0="FORCE_HIGHLIGHTING" />
     <setting file="file://$PROJECT_DIR$/CLI/Config/ConfigStore.cs" root0="FORCE_HIGHLIGHTING" />
@@ -38,7 +38,9 @@
     <setting file="file://$PROJECT_DIR$/CLI/Sixel/SixelEncoder.cs" root0="FORCE_HIGHLIGHTING" />
     <setting file="file://$PROJECT_DIR$/CLI/Sixel/SixelImageControl.cs" root0="FORCE_HIGHLIGHTING" />
     <setting file="file://$PROJECT_DIR$/CLI/Sixel/SixelTerminal.cs" root0="FORCE_HIGHLIGHTING" />
+    <setting file="file://$PROJECT_DIR$/CLI/TUI/CaptionScreen.cs" root0="FORCE_HIGHLIGHTING" />
     <setting file="file://$PROJECT_DIR$/CLI/TUI/SettingsScreen.cs" root0="FORCE_HIGHLIGHTING" />
+    <setting file="file://$PROJECT_DIR$/CLI/Utils/NativeFileDialog.cs" root0="FORCE_HIGHLIGHTING" />
     <setting file="file://$PROJECT_DIR$/CLI/auth/DecodeAuth.cs" root0="FORCE_HIGHLIGHTING" />
     <setting file="file://$PROJECT_DIR$/CLI/auth/EncodeAuth.cs" root0="FORCE_HIGHLIGHTING" />
     <setting file="file://$PROJECT_DIR$/ImgFlip/ImgFlipCredentials.cs" root0="FORCE_HIGHLIGHTING" />
