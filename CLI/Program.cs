@@ -60,7 +60,7 @@ namespace image_flip_bosch.CLI
 
       Logger.MinimumLevel = LogLevel.Error;
       //ConsoleTap.Start(ConfigPaths.File("tap.log"));
-      int code = await Task.Run(() => ws.Run());
+      int code = await Task.Run(ws.Run);
 
       Logger.UseConsole();
       Logger.Info("Application finished.");
