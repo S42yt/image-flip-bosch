@@ -19,6 +19,10 @@ namespace image_flip_bosch.CLI.TUI
       (BoschTheme.ThemeName, "Bosch red on anthracite", () => new BoschTheme()),
       (BoschLightTheme.ThemeName, "Bosch red on light grey", () => new BoschLightTheme()),
       (ImgFlipTheme.ThemeName, "Imgflip blue on dark", () => new ImgFlipTheme()),
+      (LatteTheme.ThemeName, LatteTheme.ThemeDesc, () => new LatteTheme()),
+      (FrappeTheme.ThemeName, FrappeTheme.ThemeDesc, () => new FrappeTheme()),
+      (MacchiatoTheme.ThemeName, MacchiatoTheme.ThemeDesc, () => new MacchiatoTheme()),
+      (MochaTheme.ThemeName, MochaTheme.ThemeDesc, () => new MochaTheme()),
     ];
 
     public static void Register(ConsoleWindowSystem ws)
