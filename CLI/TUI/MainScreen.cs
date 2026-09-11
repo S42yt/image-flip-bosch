@@ -36,6 +36,8 @@ namespace image_flip_bosch.CLI.TUI
     private readonly PromptControl _bottomText;
     private readonly Window _window;
 
+   
+
     private Meme[] _allMemes = Array.Empty<Meme>();
     private Meme? _selected;
     private string? _resultUrl;
@@ -50,7 +52,9 @@ namespace image_flip_bosch.CLI.TUI
       _configStore = configStore;
       _setup = setup;
 
-      _filter = Controls.Prompt(" Filter ")
+
+
+    _filter = Controls.Prompt(" Filter ")
         .WithPlaceholder("type to filter templates")
         .UnfocusOnEnter(false)
         .OnInputChanged((_, text) => ApplyFilter(text))
@@ -125,7 +129,7 @@ namespace image_flip_bosch.CLI.TUI
       captions.Place(_bottomText, 0, 1);
 
       StatusBarControl statusBar = Controls.StatusBar()
-        .AddLeft("F5", "Create", () => _ = CreateMemeAsync())
+        .AddLeft("F5", "Create", () => {})
         .AddLeft("^C", "Copy URL", () => CopyResultUrl())
         .AddLeft("^S", "Save", () => _ = SaveResultAsync())
         .AddLeft("^R", "Reload", () => _ = LoadTemplatesAsync())
@@ -145,6 +149,7 @@ namespace image_flip_bosch.CLI.TUI
         .AddControls(_filter, content, captions, statusBar)
         .Build();
 
+
       _window.PreviewKeyPressed += OnKey;
     }
 
@@ -162,7 +167,7 @@ namespace image_flip_bosch.CLI.TUI
     {
       if (e.KeyInfo.Key == ConsoleKey.F5)
       {
-        _ = CreateMemeAsync();
+        new MemeCreationScreen(_ws, _window).Show();
         e.Handled = true;
         return;
       }
