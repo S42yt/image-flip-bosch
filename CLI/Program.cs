@@ -1,5 +1,6 @@
 namespace image_flip_bosch.CLI
 {
+  using image_flip_bosch.CLI.Config.Themes;
   using image_flip_bosch.CLI.Sixel;
   using image_flip_bosch.CLI.Utils;
   using SharpConsoleUI;
@@ -65,6 +66,14 @@ namespace image_flip_bosch.CLI
         .UnfocusOnEnter(false)
         .StickyTop()
         .Build();
+
+      /*
+       * Themes Registration 
+       */
+
+      ws.ThemeRegistryService.RegisterTheme("BoschTheme", "BoschTheme", () => new BoschTheme());
+
+      ws.ThemeStateService.SwitchTheme("BoschTheme");
 
       Window win = new WindowBuilder(ws)
         .WithTitle("image_flip_bosch")
