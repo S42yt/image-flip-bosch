@@ -13,6 +13,7 @@
     <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.12" />
     <PackageReference Include="SharpConsoleUI" Version="2.6.6" />
     <PackageReference Include="SixLabors.ImageSharp" Version="4.1.1" />
+    <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="11.0.0-rc.1.26425.128" />
   </ItemGroup>
 
   <ItemGroup>
