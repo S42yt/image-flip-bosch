@@ -76,6 +76,14 @@ namespace image_flip_bosch.ImgFlip
     {
       ResponseImgFlipData data = Unwrap(await _httpClient.GetFromJsonAsync<ResponseImgFlip>("get_memes"));
       return data.Memes ?? throw new ImgFlipException("get_memes returned no memes");
+      ResponseImgFlip res = await httpClient.GetFromJsonAsync<ResponseImgFlip>("get_memes") ??
+        throw new JsonException("Failed to deserialize JSON");
+      if (res.ErrorMessage is string errorMessage)
+        throw new Exception(errorMessage);
+      ResponseImgFlipData data = res.ResponseImgFlipData ??
+        throw new JsonException("Invalid JSON data");
+      return data.Memes ??
+        throw new JsonException("Invalid JSON data");
     }
 
     public async Task<string> CaptionImage(

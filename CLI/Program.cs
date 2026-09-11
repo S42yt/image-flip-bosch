@@ -46,7 +46,11 @@ namespace image_flip_bosch.CLI
 
       ConsoleWindowSystem ws = new(
         new SixelDriver(new NetConsoleDriver(RenderMode.Buffer), sixel),
-        options: new ConsoleWindowSystemOptions(TargetFPS: 60, DirtyTrackingMode: DirtyTrackingMode.Cell));
+        options: new ConsoleWindowSystemOptions(
+          TargetFPS: 60,
+          DirtyTrackingMode: DirtyTrackingMode.Cell,
+          ShowBottomPanel: false,
+          ShowTopPanel: false));
 
       MainScreen main = new(ws, cache, imgflip, configStore, setup);
       main.Show();
