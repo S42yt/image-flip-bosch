@@ -180,10 +180,10 @@ namespace image_flip_bosch.CLI.TUI
 
     public void Show()
     {
-      _ws.RegisterGlobalShortcut(ConsoleModifiers.Control, ConsoleKey.S, () => _ = SaveCurrentAsync());
-      _ws.RegisterGlobalShortcut(ConsoleModifiers.Control, ConsoleKey.O, OpenSettings);
-      _ws.RegisterGlobalShortcut(ConsoleModifiers.Control, ConsoleKey.R, () => _ = LoadTemplatesAsync());
-      _ws.RegisterGlobalShortcut(ConsoleModifiers.Control, ConsoleKey.X, () => _ws.Shutdown());
+      //_ws.RegisterGlobalShortcut(ConsoleModifiers.Control, ConsoleKey.S, () => _ = SaveCurrentAsync());
+      //_ws.RegisterGlobalShortcut(ConsoleModifiers.Control, ConsoleKey.O, OpenSettings);
+      //_ws.RegisterGlobalShortcut(ConsoleModifiers.Control, ConsoleKey.R, () => _ = LoadTemplatesAsync());
+      //_ws.RegisterGlobalShortcut(ConsoleModifiers.Control, ConsoleKey.X, () => _ws.Shutdown());
 
       _ws.AddWindow(_window);
       _window.State = WindowState.Maximized;
@@ -238,12 +238,12 @@ namespace image_flip_bosch.CLI.TUI
         case ConsoleKey.F7: _ = SaveCurrentAsync(); e.Handled = true; break;
         case ConsoleKey.F8: OpenSettings(); e.Handled = true; break;
         case ConsoleKey.F9: _ = LoadTemplatesAsync(); e.Handled = true; break;
-        case ConsoleKey.C when ctrl: CopyResultUrl(); e.Handled = true; break;
-        case ConsoleKey.S when ctrl: _ = SaveCurrentAsync(); e.Handled = true; break;
-        case ConsoleKey.R when ctrl: _ = LoadTemplatesAsync(); e.Handled = true; break;
-        case ConsoleKey.O when ctrl: OpenSettings(); e.Handled = true; break;
-        case ConsoleKey.X when ctrl: _ws.Shutdown(); e.Handled = true; break;
         case ConsoleKey.Escape: _window.FocusControl(_filter); e.Handled = true; break;
+        //case ConsoleKey.C when ctrl: CopyResultUrl(); e.Handled = true; break;
+        //case ConsoleKey.S when ctrl: _ = SaveCurrentAsync(); e.Handled = true; break;
+        //case ConsoleKey.R when ctrl: _ = LoadTemplatesAsync(); e.Handled = true; break;
+        //case ConsoleKey.O when ctrl: OpenSettings(); e.Handled = true; break;
+        //case ConsoleKey.X when ctrl: _ws.Shutdown(); e.Handled = true; break;
       }
     }
 
