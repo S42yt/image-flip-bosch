@@ -142,7 +142,7 @@ namespace image_flip_bosch.CLI.TUI
       bool ctrl = e.KeyInfo.Modifiers.HasFlag(ConsoleModifiers.Control);
       if (e.KeyInfo.Key == ConsoleKey.F5)
       {
-        new MemeCreationScreen(_ws, _window).Show();
+        new MemeCreationScreen(_ws, _cache, _imgflip).Show();
         e.Handled = true;
         return;
       }

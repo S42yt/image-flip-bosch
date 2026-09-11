@@ -47,7 +47,7 @@ namespace image_flip_bosch.CLI.Utils.Image
         string? existing = FindFile(key);
         if (existing is not null && !IsExpired(existing))
         {
-          Logger.Debug($"Cache hit: {url}");
+          // cache hit - do not log URL to avoid leaking remote addresses in debug output
           return existing;
         }
 
