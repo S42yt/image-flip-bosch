@@ -1,8 +1,9 @@
-using image_flip_bosch.CLI.Utils.Image;
 using image_flip_bosch.CLI.Config;
 using image_flip_bosch.CLI.Config.ImgFlip;
 using image_flip_bosch.CLI.Sixel;
 using image_flip_bosch.CLI.TUI;
+using image_flip_bosch.CLI.Utils;
+using image_flip_bosch.CLI.Utils.Image;
 using image_flip_bosch.ImgFlip;
 using image_flip_bosch.ImgFlip.Auth;
 using SharpConsoleUI;
@@ -10,12 +11,9 @@ using SharpConsoleUI.Configuration;
 using SharpConsoleUI.Drivers;
 using System.Text;
 
-using image_flip_bosch.CLI.Utils;
-
 namespace image_flip_bosch.CLI
 {
-
-  public class Program
+  public abstract class Program
   {
     public static async Task<int> Main(string[] args)
     {
@@ -50,18 +48,21 @@ namespace image_flip_bosch.CLI
       Logger.Info($"Sixel: supported={sixel.Supported} cell={sixel.CellWidth}x{sixel.CellHeight}");
 
       Logger.UseFile(ConfigPaths.File("app.log"));
+      Logger.MinimumLevel = LogLevel.Info;
 
       ConsoleWindowSystem ws = new(
         new SixelDriver(new NetConsoleDriver(RenderMode.Buffer), sixel),
         options: new ConsoleWindowSystemOptions(TargetFPS: 60, DirtyTrackingMode: DirtyTrackingMode.Cell));
 
+      string theme = AppThemes.ApplyFromConfig(ws, configStore);
+      Logger.Info($"Theme: {theme}");
+
       MainScreen main = new(ws, cache, imgflip, configStore, setup);
       main.Show();
 
-      Logger.MinimumLevel = LogLevel.Error;
-      //ConsoleTap.Start(ConfigPaths.File("tap.log"));
       int code = await Task.Run(ws.Run);
 
+      Logger.MinimumLevel = LogLevel.Debug;
       Logger.UseConsole();
       Logger.Info("Application finished.");
       return code;

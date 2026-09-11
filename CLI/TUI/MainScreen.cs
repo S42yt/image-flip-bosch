@@ -1,9 +1,5 @@
 using image_flip_bosch.CLI.Config;
 using image_flip_bosch.CLI.Config.ImgFlip;
-using image_flip_bosch.CLI.Utils.Image;
-using image_flip_bosch.CLI.Utils.Native;
-using image_flip_bosch.ImgFlip.Auth;
-using image_flip_bosch.ImgFlip.Requests;
 using SharpConsoleUI;
 using SharpConsoleUI.Builders;
 using SharpConsoleUI.Controls;
@@ -11,6 +7,10 @@ using SharpConsoleUI.Core;
 using SharpConsoleUI.Helpers;
 using SharpConsoleUI.Layout;
 using SharpConsoleUI.Parsing;
+using image_flip_bosch.CLI.Utils.Image;
+using image_flip_bosch.CLI.Utils.Native;
+using image_flip_bosch.ImgFlip.Auth;
+using image_flip_bosch.ImgFlip.Requests;
 
 namespace image_flip_bosch.CLI.TUI
 {
@@ -30,7 +30,7 @@ namespace image_flip_bosch.CLI.TUI
     private readonly MarkupControl _log;
     private readonly Window _window;
 
-    private Meme[] _allMemes = [];
+    private Meme[] _allMemes = Array.Empty<Meme>();
     private Meme? _selected;
     private string? _resultUrl;
     private string[]? _lastCaptions;
@@ -85,7 +85,7 @@ namespace image_flip_bosch.CLI.TUI
       side.Place(logPanel, 1, 0);
 
       GridControl content = Controls.Grid()
-        .Columns(GridLength.Star(), GridLength.Star(2), GridLength.Star())
+        .Columns(GridLength.Star(1), GridLength.Star(2), GridLength.Star(1))
         .Rows(GridLength.Star())
         .ColumnGap(1)
         .WithAlignment(HorizontalAlignment.Stretch)
@@ -94,17 +94,18 @@ namespace image_flip_bosch.CLI.TUI
       content.Place(_templates, 0, 0);
       content.Place(_preview, 0, 1);
       content.Place(side, 0, 2);
-      content.Cell(0, 0).Border = BorderStyle.Frameless;
-      content.Cell(0, 1).Border = BorderStyle.DoubleLine;
-      content.Cell(0, 2).Border = BorderStyle.Frameless;
+      content.Cell(0, 0).Border = BorderStyle.Rounded;
+      content.Cell(0, 1).Border = BorderStyle.Rounded;
+      content.Cell(0, 2).Border = BorderStyle.Rounded;
 
       StatusBarControl statusBar = Controls.StatusBar()
         .AddLeft("F5", "Caption", () => _ = OpenCaptionsAsync())
-        .AddLeft("ALT + C", "Copy URL", CopyResultUrl)
-        .AddLeft("ALT + S", "Save image", () => _ = SaveCurrentAsync())
-        .AddLeft("ALT + O", "Settings", OpenSettings)
-        .AddLeft("ALT + R", "Reload", () => _ = LoadTemplatesAsync())
-        .AddRight("ALT + X", "Quit", () => _ws.Shutdown())
+        .AddLeft("F6", "Copy URL", () => CopyResultUrl())
+        .AddLeft("F7", "Save image", () => _ = SaveCurrentAsync())
+        .AddLeft("F8", "Settings", () => OpenSettings())
+        .AddLeft("F9", "Reload", () => _ = LoadTemplatesAsync())
+        .AddLeft("F3", "Theme", () => CycleTheme(false))
+        .AddRight("F10", "Quit", () => _ws.Shutdown())
         .StickyBottom()
         .Build();
 
@@ -124,12 +125,10 @@ namespace image_flip_bosch.CLI.TUI
 
     public void Show()
     {
-      _ws.RegisterGlobalShortcut(ConsoleModifiers.Alt, ConsoleKey.F5, () => _ = OpenCaptionsAsync());
-      _ws.RegisterGlobalShortcut(ConsoleModifiers.Alt, ConsoleKey.C, CopyResultUrl);
-      _ws.RegisterGlobalShortcut(ConsoleModifiers.Alt, ConsoleKey.S, () => _ = SaveCurrentAsync());
-      _ws.RegisterGlobalShortcut(ConsoleModifiers.Alt, ConsoleKey.O, OpenSettings);
-      _ws.RegisterGlobalShortcut(ConsoleModifiers.Alt, ConsoleKey.R, () => _ = LoadTemplatesAsync());
-      _ws.RegisterGlobalShortcut(ConsoleModifiers.Alt, ConsoleKey.X, () => _ws.Shutdown());
+      _ws.RegisterGlobalShortcut(ConsoleModifiers.Control, ConsoleKey.S, () => _ = SaveCurrentAsync());
+      _ws.RegisterGlobalShortcut(ConsoleModifiers.Control, ConsoleKey.O, () => OpenSettings());
+      _ws.RegisterGlobalShortcut(ConsoleModifiers.Control, ConsoleKey.R, () => _ = LoadTemplatesAsync());
+      _ws.RegisterGlobalShortcut(ConsoleModifiers.Control, ConsoleKey.X, () => _ws.Shutdown());
 
       _ws.AddWindow(_window);
       _window.State = WindowState.Maximized;
@@ -141,25 +140,29 @@ namespace image_flip_bosch.CLI.TUI
 
     private void OnKey(object? sender, KeyPressedEventArgs e)
     {
-      //bool ctrl = e.KeyInfo.Modifiers.HasFlag(ConsoleModifiers.Control);
-      bool alt = e.KeyInfo.Modifiers.HasFlag(ConsoleModifiers.Alt);
-      if (e.KeyInfo.Key == ConsoleKey.F5)
-      {
-        new MemeCreationScreen(_ws, _window).Show();
-        e.Handled = true;
-        return;
-      }
-
-      if (!e.KeyInfo.Modifiers.HasFlag(ConsoleModifiers.Control)) return;
+      bool ctrl = e.KeyInfo.Modifiers.HasFlag(ConsoleModifiers.Control);
       switch (e.KeyInfo.Key)
       {
         case ConsoleKey.F5: _ = OpenCaptionsAsync(); e.Handled = true; break;
-        case ConsoleKey.C when alt: CopyResultUrl(); e.Handled = true; break;
-        case ConsoleKey.S when alt: _ = SaveCurrentAsync(); e.Handled = true; break;
-        case ConsoleKey.R when alt: _ = LoadTemplatesAsync(); e.Handled = true; break;
-        case ConsoleKey.O when alt: OpenSettings(); e.Handled = true; break;
-        case ConsoleKey.X when alt: _ws.Shutdown(); e.Handled = true; break;
+        case ConsoleKey.F6: CopyResultUrl(); e.Handled = true; break;
+        case ConsoleKey.F7: _ = SaveCurrentAsync(); e.Handled = true; break;
+        case ConsoleKey.F8: OpenSettings(); e.Handled = true; break;
+        case ConsoleKey.F9: _ = LoadTemplatesAsync(); e.Handled = true; break;
+        case ConsoleKey.F3: CycleTheme(e.KeyInfo.Modifiers.HasFlag(ConsoleModifiers.Shift)); e.Handled = true; break;
+        case ConsoleKey.F10: _ws.Shutdown(); e.Handled = true; break;
+        case ConsoleKey.C when ctrl: CopyResultUrl(); e.Handled = true; break;
+        case ConsoleKey.S when ctrl: _ = SaveCurrentAsync(); e.Handled = true; break;
+        case ConsoleKey.R when ctrl: _ = LoadTemplatesAsync(); e.Handled = true; break;
+        case ConsoleKey.O when ctrl: OpenSettings(); e.Handled = true; break;
+        case ConsoleKey.X when ctrl: _ws.Shutdown(); e.Handled = true; break;
       }
+    }
+
+    private void CycleTheme(bool backward)
+    {
+      string name = AppThemes.Next(_ws, backward);
+      AppThemes.Save(_configStore, name);
+      Toast($"Theme: {name}", NotificationSeverity.Info);
     }
 
     private void OpenSettings() =>
@@ -195,11 +198,9 @@ namespace image_flip_bosch.CLI.TUI
         ? _allMemes
         : _allMemes.Where(m => m.Name.Contains(needle, StringComparison.OrdinalIgnoreCase));
 
-      List<ListItem> items =
-      [
-        .. visible
-          .Select(meme => new ListItem($"{MarkupParser.Escape(meme.Name)} [dim]({meme.BoxCount})[/]") { Tag = meme })
-      ];
+      List<ListItem> items = visible
+        .Select(meme => new ListItem($"{MarkupParser.Escape(meme.Name)} [dim]({meme.BoxCount})[/]") { Tag = meme })
+        .ToList();
 
       _templates.Items = items;
       if (items.Count > 0)
@@ -266,7 +267,7 @@ namespace image_flip_bosch.CLI.TUI
       try
       {
         ImgFlipConfig options = _configStore.Load().ImgFlip;
-        await _previewCts?.CancelAsync()!;
+        _previewCts?.Cancel();
 
         string url;
         if (texts.Length <= 2)
@@ -280,11 +281,9 @@ namespace image_flip_bosch.CLI.TUI
         }
         else
         {
-          MemeCreationBox[] boxes =
-          [
-            .. texts
-              .Select(t => new MemeCreationBox { Text = t })
-          ];
+          MemeCreationBox[] boxes = texts
+            .Select(t => new MemeCreationBox { Text = t })
+            .ToArray();
           url = await _imgflip.CaptionImage(
             meme.Id,
             string.Empty,

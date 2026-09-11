@@ -2,6 +2,8 @@ namespace image_flip_bosch.CLI.Config
 {
   public sealed class AppConfig
   {
+    public string? Theme { get; set; } = "Bosch";
+
     public CacheConfig Cache { get; set; } = new();
 
     public ImgFlipConfig ImgFlip { get; set; } = new();

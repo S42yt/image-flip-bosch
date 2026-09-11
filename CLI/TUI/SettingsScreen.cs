@@ -6,7 +6,10 @@ namespace image_flip_bosch.CLI.TUI
   using SharpConsoleUI.Builders;
   using SharpConsoleUI.Controls;
   using SharpConsoleUI.Core;
+  using SharpConsoleUI.Layout;
   using System;
+  using System.Collections.Generic;
+  using System.Linq;
 
   internal sealed class SettingsScreen
   {
@@ -19,6 +22,7 @@ namespace image_flip_bosch.CLI.TUI
     private readonly PromptControl _password;
     private readonly PromptControl _maxFontSize;
     private readonly CheckboxControl _noWatermark;
+    private readonly DropdownControl _theme;
     private readonly MarkupControl _status;
     private readonly Window _window;
 
@@ -34,7 +38,7 @@ namespace image_flip_bosch.CLI.TUI
       _username = Controls.Prompt(" Username ")
         .WithPlaceholder("imgflip account")
         .UnfocusOnEnter(false)
-        .OnEntered((_, _) => _window?.FocusControl(_password))
+        .OnEntered((_, _) => _window.FocusControl(_password))
         .Build();
       _username.Input = current.Username ?? string.Empty;
 
@@ -42,7 +46,7 @@ namespace image_flip_bosch.CLI.TUI
         .WithPlaceholder(setup.IsConfigured ? "unchanged" : "optional")
         .WithMaskCharacter('*')
         .UnfocusOnEnter(false)
-        .OnEntered((_, _) => _window?.FocusControl(_maxFontSize))
+        .OnEntered((_, _) => _window.FocusControl(_maxFontSize))
         .Build();
 
       _maxFontSize = Controls.Prompt(" Max font size ")
@@ -56,17 +60,30 @@ namespace image_flip_bosch.CLI.TUI
         .Checked(current.NoWatermark)
         .Build();
 
+      IReadOnlyList<string> themeNames = AppThemes.Names(ws);
+      int currentTheme = themeNames.ToList().FindIndex(n => string.Equals(n, AppThemes.Current(ws), StringComparison.OrdinalIgnoreCase));
+      _theme = Controls.Dropdown(" Theme ")
+        .AddItems(themeNames.ToArray())
+        .SelectedIndex(Math.Max(0, currentTheme))
+        .OnSelectedItemChanged((_, item) =>
+        {
+          if (item is null) return;
+          AppThemes.Apply(ws, item.Text);
+          AppThemes.Save(configStore, item.Text);
+        })
+        .Build();
+
       _status = Controls.Markup(StatusLine()).Build();
 
       HorizontalGridControl buttons = Controls.HorizontalGrid()
         .Column(c => c.Add(Controls.Button("Save").OnClick((_, _) => Save()).Build()))
         .Column(c => c.Add(Controls.Button("Remove credentials").OnClick((_, _) => RemoveCredentials()).Build()))
-        .Column(c => c.Add(Controls.Button("Close").OnClick((_, _) => _window?.Close()).Build()))
+        .Column(c => c.Add(Controls.Button("Close").OnClick((_, _) => _window.Close()).Build()))
         .Build();
 
       _window = new WindowBuilder(ws)
         .WithTitle("Settings")
-        .WithSize(64, 14)
+        .WithSize(64, 16)
         .Centered()
         .AsModal()
         .Resizable(false)
@@ -78,6 +95,7 @@ namespace image_flip_bosch.CLI.TUI
           _password,
           _maxFontSize,
           _noWatermark,
+          _theme,
           _status,
           buttons)
         .Build();
