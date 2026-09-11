@@ -2,7 +2,6 @@ using image_flip_bosch.CLI.Config;
 using image_flip_bosch.CLI.Config.ImgFlip;
 using image_flip_bosch.CLI.Utils.Image;
 using image_flip_bosch.CLI.Utils.Native;
-using image_flip_bosch.ImgFlip;
 using image_flip_bosch.ImgFlip.Auth;
 using image_flip_bosch.ImgFlip.Requests;
 using SharpConsoleUI;
@@ -141,6 +140,14 @@ namespace image_flip_bosch.CLI.TUI
     private void OnKey(object? sender, KeyPressedEventArgs e)
     {
       bool ctrl = e.KeyInfo.Modifiers.HasFlag(ConsoleModifiers.Control);
+      if (e.KeyInfo.Key == ConsoleKey.F5)
+      {
+        new MemeCreationScreen(_ws, _window).Show();
+        e.Handled = true;
+        return;
+      }
+
+      if (!e.KeyInfo.Modifiers.HasFlag(ConsoleModifiers.Control)) return;
       switch (e.KeyInfo.Key)
       {
         case ConsoleKey.F5: _ = OpenCaptionsAsync(); e.Handled = true; break;
