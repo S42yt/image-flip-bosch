@@ -1,23 +1,19 @@
+using image_flip_bosch.CLI.Config;
+using image_flip_bosch.CLI.Config.ImgFlip;
+using image_flip_bosch.CLI.Utils.Image;
+using image_flip_bosch.CLI.Utils.Native;
+using image_flip_bosch.ImgFlip.Auth;
+using image_flip_bosch.ImgFlip.Requests;
+using SharpConsoleUI;
+using SharpConsoleUI.Builders;
+using SharpConsoleUI.Controls;
+using SharpConsoleUI.Core;
+using SharpConsoleUI.Helpers;
+using SharpConsoleUI.Layout;
+using SharpConsoleUI.Parsing;
+
 namespace image_flip_bosch.CLI.TUI
 {
-  using image_flip_bosch.CLI.Config;
-  using image_flip_bosch.CLI.Config.ImgFlip;
-  using image_flip_bosch.CLI.Utils;
-  using image_flip_bosch.ImgFlip;
-  using SharpConsoleUI;
-  using SharpConsoleUI.Builders;
-  using SharpConsoleUI.Controls;
-  using SharpConsoleUI.Core;
-  using SharpConsoleUI.Dialogs;
-  using SharpConsoleUI.Helpers;
-  using SharpConsoleUI.Layout;
-  using SharpConsoleUI.Parsing;
-  using System;
-  using System.Collections.Generic;
-  using System.IO;
-  using System.Linq;
-  using System.Threading;
-  using System.Threading.Tasks;
 
   internal sealed class MainScreen
   {
@@ -32,15 +28,12 @@ namespace image_flip_bosch.CLI.TUI
     private readonly ImagePreview _preview;
     private readonly MarkupControl _details;
     private readonly MarkupControl _log;
-    private readonly PromptControl _topText;
-    private readonly PromptControl _bottomText;
     private readonly Window _window;
 
-   
-
-    private Meme[] _allMemes = Array.Empty<Meme>();
+    private Meme[] _allMemes = [];
     private Meme? _selected;
     private string? _resultUrl;
+    private string[]? _lastCaptions;
     private bool _busy;
     private CancellationTokenSource? _previewCts;
 
@@ -52,9 +45,7 @@ namespace image_flip_bosch.CLI.TUI
       _configStore = configStore;
       _setup = setup;
 
-
-
-    _filter = Controls.Prompt(" Filter ")
+      _filter = Controls.Prompt(" Filter ")
         .WithPlaceholder("type to filter templates")
         .UnfocusOnEnter(false)
         .OnInputChanged((_, text) => ApplyFilter(text))
@@ -64,7 +55,7 @@ namespace image_flip_bosch.CLI.TUI
         .WithVerticalAlignment(VerticalAlignment.Fill)
         .WithAlignment(HorizontalAlignment.Stretch)
         .OnSelectedItemChanged((_, item) => OnTemplateSelected(item))
-        .OnItemActivated((_, _) => _window.FocusControl(_topText))
+        .OnItemActivated((_, _) => _ = OpenCaptionsAsync())
         .Build();
 
       _preview = new ImagePreview(ws)
@@ -94,7 +85,7 @@ namespace image_flip_bosch.CLI.TUI
       side.Place(logPanel, 1, 0);
 
       GridControl content = Controls.Grid()
-        .Columns(GridLength.Star(1), GridLength.Star(2), GridLength.Star(1))
+        .Columns(GridLength.Star(), GridLength.Star(2), GridLength.Star())
         .Rows(GridLength.Star())
         .ColumnGap(1)
         .WithAlignment(HorizontalAlignment.Stretch)
@@ -107,34 +98,13 @@ namespace image_flip_bosch.CLI.TUI
       content.Cell(0, 1).Border = BorderStyle.Rounded;
       content.Cell(0, 2).Border = BorderStyle.Rounded;
 
-      _topText = Controls.Prompt(" Top ")
-        .WithPlaceholder("text0")
-        .UnfocusOnEnter(false)
-        .OnEntered((_, _) => _window.FocusControl(_bottomText))
-        .Build();
-
-      _bottomText = Controls.Prompt(" Bottom ")
-        .WithPlaceholder("text1")
-        .UnfocusOnEnter(false)
-        .OnEntered((_, _) => _ = CreateMemeAsync())
-        .Build();
-
-      GridControl captions = Controls.Grid()
-        .Columns(GridLength.Star(), GridLength.Star())
-        .Rows(GridLength.Auto())
-        .ColumnGap(1)
-        .WithAlignment(HorizontalAlignment.Stretch)
-        .Build();
-      captions.Place(_topText, 0, 0);
-      captions.Place(_bottomText, 0, 1);
-
       StatusBarControl statusBar = Controls.StatusBar()
-        .AddLeft("F5", "Create", () => {})
-        .AddLeft("^C", "Copy URL", () => CopyResultUrl())
-        .AddLeft("^S", "Save", () => _ = SaveResultAsync())
-        .AddLeft("^R", "Reload", () => _ = LoadTemplatesAsync())
-        .AddLeft("^O", "Settings", () => OpenSettings())
-        .AddRight("^X", "Quit", () => _ws.Shutdown())
+        .AddLeft("F5", "Caption", () => _ = OpenCaptionsAsync())
+        .AddLeft("F6", "Copy URL", CopyResultUrl)
+        .AddLeft("F7", "Save image", () => _ = SaveCurrentAsync())
+        .AddLeft("F8", "Settings", OpenSettings)
+        .AddLeft("F9", "Reload", () => _ = LoadTemplatesAsync())
+        .AddRight("F10", "Quit", () => _ws.Shutdown())
         .StickyBottom()
         .Build();
 
@@ -146,15 +116,19 @@ namespace image_flip_bosch.CLI.TUI
         .Closable(false)
         .Minimizable(false)
         .Maximizable(false)
-        .AddControls(_filter, content, captions, statusBar)
+        .AddControls(_filter, content, statusBar)
         .Build();
-
 
       _window.PreviewKeyPressed += OnKey;
     }
 
     public void Show()
     {
+      _ws.RegisterGlobalShortcut(ConsoleModifiers.Control, ConsoleKey.S, () => _ = SaveCurrentAsync());
+      _ws.RegisterGlobalShortcut(ConsoleModifiers.Control, ConsoleKey.O, OpenSettings);
+      _ws.RegisterGlobalShortcut(ConsoleModifiers.Control, ConsoleKey.R, () => _ = LoadTemplatesAsync());
+      _ws.RegisterGlobalShortcut(ConsoleModifiers.Control, ConsoleKey.X, () => _ws.Shutdown());
+
       _ws.AddWindow(_window);
       _window.State = WindowState.Maximized;
       _window.FocusControl(_filter);
@@ -165,6 +139,7 @@ namespace image_flip_bosch.CLI.TUI
 
     private void OnKey(object? sender, KeyPressedEventArgs e)
     {
+      bool ctrl = e.KeyInfo.Modifiers.HasFlag(ConsoleModifiers.Control);
       if (e.KeyInfo.Key == ConsoleKey.F5)
       {
         new MemeCreationScreen(_ws, _window).Show();
@@ -175,11 +150,17 @@ namespace image_flip_bosch.CLI.TUI
       if (!e.KeyInfo.Modifiers.HasFlag(ConsoleModifiers.Control)) return;
       switch (e.KeyInfo.Key)
       {
-        case ConsoleKey.C: CopyResultUrl(); e.Handled = true; break;
-        case ConsoleKey.S: _ = SaveResultAsync(); e.Handled = true; break;
-        case ConsoleKey.R: _ = LoadTemplatesAsync(); e.Handled = true; break;
-        case ConsoleKey.O: OpenSettings(); e.Handled = true; break;
-        case ConsoleKey.X: _ws.Shutdown(); e.Handled = true; break;
+        case ConsoleKey.F5: _ = OpenCaptionsAsync(); e.Handled = true; break;
+        case ConsoleKey.F6: CopyResultUrl(); e.Handled = true; break;
+        case ConsoleKey.F7: _ = SaveCurrentAsync(); e.Handled = true; break;
+        case ConsoleKey.F8: OpenSettings(); e.Handled = true; break;
+        case ConsoleKey.F9: _ = LoadTemplatesAsync(); e.Handled = true; break;
+        case ConsoleKey.F10: _ws.Shutdown(); e.Handled = true; break;
+        case ConsoleKey.C when ctrl: CopyResultUrl(); e.Handled = true; break;
+        case ConsoleKey.S when ctrl: _ = SaveCurrentAsync(); e.Handled = true; break;
+        case ConsoleKey.R when ctrl: _ = LoadTemplatesAsync(); e.Handled = true; break;
+        case ConsoleKey.O when ctrl: OpenSettings(); e.Handled = true; break;
+        case ConsoleKey.X when ctrl: _ws.Shutdown(); e.Handled = true; break;
       }
     }
 
@@ -216,9 +197,11 @@ namespace image_flip_bosch.CLI.TUI
         ? _allMemes
         : _allMemes.Where(m => m.Name.Contains(needle, StringComparison.OrdinalIgnoreCase));
 
-      List<ListItem> items = visible
-        .Select(meme => new ListItem($"{MarkupParser.Escape(meme.Name)} [dim]({meme.BoxCount})[/]") { Tag = meme })
-        .ToList();
+      List<ListItem> items =
+      [
+        .. visible
+          .Select(meme => new ListItem($"{MarkupParser.Escape(meme.Name)} [dim]({meme.BoxCount})[/]") { Tag = meme })
+      ];
 
       _templates.Items = items;
       if (items.Count > 0)
@@ -231,12 +214,13 @@ namespace image_flip_bosch.CLI.TUI
 
       _selected = meme;
       _resultUrl = null;
+      _lastCaptions = null;
       _details.SetContent(
       [
         $"[bold]{MarkupParser.Escape(meme.Name)}[/]",
         $"ID [cyan]{meme.Id}[/]",
         $"{meme.Width}x{meme.Height}, {meme.BoxCount} text boxes",
-        meme.BoxCount > 2 ? "[yellow]Only top/bottom text is filled here.[/]" : string.Empty,
+        "[dim]F5 or Enter to caption, F7 to save[/]",
       ]);
 
       _previewCts?.Cancel();
@@ -261,32 +245,56 @@ namespace image_flip_bosch.CLI.TUI
       }
     }
 
-    private async Task CreateMemeAsync()
+    private async Task OpenCaptionsAsync()
     {
       if (_busy) { Log("[yellow]Busy.[/]"); return; }
       if (_selected is null) { Log("[yellow]Select a template first.[/]"); return; }
 
-      string top = _topText.Input.Trim();
-      string bottom = _bottomText.Input.Trim();
-      if (top.Length == 0 && bottom.Length == 0)
-      {
-        Log("[yellow]Enter at least one caption.[/]");
-        return;
-      }
+      Meme meme = _selected;
+      string[]? texts = await new CaptionScreen(_ws, meme, _lastCaptions).ShowAsync();
+      if (texts is null) return;
+
+      _lastCaptions = texts;
+      await CreateMemeAsync(meme, texts);
+    }
+
+    private async Task CreateMemeAsync(Meme meme, string[] texts)
+    {
+      if (_busy) { Log("[yellow]Busy.[/]"); return; }
 
       _busy = true;
-      Log($"Creating meme with [cyan]{MarkupParser.Escape(_selected.Name)}[/]...");
+      Log($"Creating meme with [cyan]{MarkupParser.Escape(meme.Name)}[/]...");
 
       try
       {
-        ImgflipConfig options = _configStore.Load().Imgflip;
-        _previewCts?.Cancel();
-        string url = await _imgflip.CaptionImage(
-          _selected.Id,
-          top,
-          bottom,
-          options.MaxFontSize,
-          options.NoWatermark && _imgflip.IsAuthenticated ? true : null);
+        ImgFlipConfig options = _configStore.Load().ImgFlip;
+        await _previewCts?.CancelAsync()!;
+
+        string url;
+        if (texts.Length <= 2)
+        {
+          url = await _imgflip.CaptionImage(
+            meme.Id,
+            texts.ElementAtOrDefault(0) ?? string.Empty,
+            texts.ElementAtOrDefault(1) ?? string.Empty,
+            options.MaxFontSize,
+            options.NoWatermark && _imgflip.IsAuthenticated ? true : null);
+        }
+        else
+        {
+          MemeCreationBox[] boxes =
+          [
+            .. texts
+              .Select(t => new MemeCreationBox { Text = t })
+          ];
+          url = await _imgflip.CaptionImage(
+            meme.Id,
+            string.Empty,
+            string.Empty,
+            options.MaxFontSize,
+            options.NoWatermark && _imgflip.IsAuthenticated ? true : null,
+            boxes);
+        }
 
         _resultUrl = url;
         Log($"[green]Created:[/] {MarkupParser.Escape(url)}");
@@ -314,19 +322,20 @@ namespace image_flip_bosch.CLI.TUI
       Log("URL copied to clipboard.");
     }
 
-    private async Task SaveResultAsync()
+    private async Task SaveCurrentAsync()
     {
-      if (_resultUrl is null) { Log("[yellow]No meme created yet.[/]"); return; }
+      string? source = _preview.CurrentPath;
+      string? sourceUrl = _resultUrl ?? _selected?.Url;
+      if (source is null || sourceUrl is null) { Log("[yellow]Nothing to save yet.[/]"); return; }
 
-      string? source = _cache.TryGetPath(_resultUrl);
-      if (source is null) { Log("[yellow]Result is not cached yet.[/]"); return; }
+      string defaultName = Path.GetFileName(new Uri(sourceUrl).AbsolutePath);
+      if (_resultUrl is null && _selected is not null)
+        defaultName = $"{Sanitize(_selected.Name)}{Path.GetExtension(defaultName)}";
 
-      string? target = await FileDialogs.ShowSaveFileAsync(
-        _ws,
+      Log("Opening file explorer...");
+      string? target = await NativeFileDialog.SaveFileAsync(
         Environment.GetFolderPath(Environment.SpecialFolder.MyPictures),
-        "*.png;*.jpg;*.jpeg;*.gif",
-        Path.GetFileName(new Uri(_resultUrl).AbsolutePath),
-        _window);
+        defaultName);
 
       if (target is null) { Log("Save cancelled."); return; }
 
@@ -341,6 +350,12 @@ namespace image_flip_bosch.CLI.TUI
       {
         Log($"[red]Save failed:[/] {MarkupParser.Escape(ex.Message)}");
       }
+    }
+
+    private static string Sanitize(string name)
+    {
+      char[] invalid = Path.GetInvalidFileNameChars();
+      return new string(name.Select(c => invalid.Contains(c) ? '_' : c).ToArray()).Trim();
     }
   }
 }

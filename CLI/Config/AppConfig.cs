@@ -4,7 +4,7 @@ namespace image_flip_bosch.CLI.Config
   {
     public CacheConfig Cache { get; set; } = new();
 
-    public ImgflipConfig Imgflip { get; set; } = new();
+    public ImgFlipConfig ImgFlip { get; set; } = new();
   }
 
   public sealed class CacheConfig
@@ -16,7 +16,7 @@ namespace image_flip_bosch.CLI.Config
     public int SweepMinutes { get; set; } = 15;
   }
 
-  public sealed class ImgflipConfig
+  public sealed class ImgFlipConfig
   {
     public string? Username { get; set; }
 

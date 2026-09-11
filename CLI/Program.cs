@@ -7,13 +7,13 @@ using image_flip_bosch.ImgFlip;
 using SharpConsoleUI;
 using SharpConsoleUI.Configuration;
 using SharpConsoleUI.Drivers;
-using System;
-using System.Threading.Tasks;
+using image_flip_bosch.CLI.Utils.Image;
+using image_flip_bosch.ImgFlip.Auth;
 
 namespace image_flip_bosch.CLI
 {
 
-  public class Program
+  public abstract class Program
   {
     public static async Task<int> Main(string[] args)
     {
@@ -55,7 +55,7 @@ namespace image_flip_bosch.CLI
       MainScreen main = new(ws, cache, imgflip, configStore, setup);
       main.Show();
 
-      int code = await Task.Run(() => ws.Run());
+      int code = await Task.Run(ws.Run);
 
       Logger.Info("Application finished.");
       return code;

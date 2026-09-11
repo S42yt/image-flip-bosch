@@ -1,13 +1,9 @@
 using image_flip_bosch.CLI.Sixel;
 using SharpConsoleUI;
-using System;
-using System.IO;
-using System.Threading;
-using System.Threading.Tasks;
 
 //mal gucken ob das so bleibt oder ob die andere version geiler ist mashallah :P
 
-namespace image_flip_bosch.CLI.Utils
+namespace image_flip_bosch.CLI.Utils.Image
 {
   public class ImagePreview : SixelImageControl
   {
@@ -65,7 +61,7 @@ namespace image_flip_bosch.CLI.Utils
       await Task.Run(() => LoadCoreAsync(path, version, ct), ct);
     }
 
-    public void Clear()
+    private void Clear()
     {
       Interlocked.Increment(ref _loadVersion);
       SetImage(null);

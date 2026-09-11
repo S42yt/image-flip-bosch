@@ -1,4 +1,4 @@
-namespace image_flip_bosch.ImgFlip
+namespace image_flip_bosch.ImgFlip.Enum
 {
   public enum EMemeTyp
   {
