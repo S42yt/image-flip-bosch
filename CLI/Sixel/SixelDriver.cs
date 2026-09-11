@@ -2,10 +2,12 @@
 using SharpConsoleUI.Core;
 using SharpConsoleUI.Drivers;
 using SharpConsoleUI.Layout;
+using System;
+using System.Collections.Generic;
 using System.Drawing;
 using System.Text;
+using System.Threading.Tasks;
 using Size = SharpConsoleUI.Helpers.Size;
-
 
 namespace image_flip_bosch.CLI.Sixel
 {
@@ -16,15 +18,22 @@ namespace image_flip_bosch.CLI.Sixel
     {
       public required SixelImageControl Control;
       public bool Changed;
+      public SixelFrame? LastFrame;
+      public int LastX = -1;
+      public int LastY = -1;
     }
 
     private readonly IConsoleDriver _inner;
     private readonly Dictionary<int, Entry> _entries = new();
-    private readonly Lock _lock = new();
+    private readonly object _lock = new();
     private int _cursorX;
     private int _cursorY;
+    private long _lastEmitTicks;
+    private bool _throttleScheduled;
+    private bool _forceAllSnapshot;
+    private static readonly TimeSpan MinEmitInterval = TimeSpan.FromMilliseconds(120);
     private readonly bool _disabled = Environment.GetEnvironmentVariable("IFB_NO_SIXEL") is not null;
-    private int[] _map = [];
+    private int[] _map = Array.Empty<int>();
     private int _w;
     private int _h;
     private bool _forceAll;
@@ -192,9 +201,10 @@ namespace image_flip_bosch.CLI.Sixel
 
       lock (_lock)
       {
-        foreach (Entry entry in _entries.Values.Where(entry => _forceAll || entry.Changed || entry.Control.HasPendingFrame))
+        _forceAllSnapshot = _forceAll;
+        foreach (Entry entry in _entries.Values)
         {
-          entry.Changed = false;
+          if (!_forceAll && !entry.Changed && !entry.Control.HasPendingFrame) continue;
 
           int id = entry.Control.SentinelId;
           int minX = int.MaxValue, minY = int.MaxValue, maxX = -1, maxY = -1, count = 0;
@@ -219,14 +229,31 @@ namespace image_flip_bosch.CLI.Sixel
 
           ready.Add((entry, minX, minY, w, h));
         }
-
         _forceAll = false;
+      }
+
+      if (ready.Count == 0) return;
+
+      TimeSpan sinceLast = TimeSpan.FromTicks(DateTime.UtcNow.Ticks - _lastEmitTicks);
+      if (sinceLast < MinEmitInterval)
+      {
+        lock (_lock) _forceAll = _forceAll || _forceAllSnapshot;
+        ScheduleRetry(MinEmitInterval - sinceLast, ready[0].entry.Control);
+        return;
       }
 
       foreach ((Entry entry, int x, int y, int w, int h) in ready)
       {
         SixelFrame? frame = entry.Control.GetFrame(w, h, Capabilities.CellWidth, Capabilities.CellHeight);
         if (frame is null) continue;
+
+        bool regionRewritten = entry.Changed || _forceAllSnapshot;
+        if (!regionRewritten && ReferenceEquals(frame, entry.LastFrame) && entry.LastX == x && entry.LastY == y)
+          continue;
+
+        entry.LastFrame = frame;
+        entry.LastX = x;
+        entry.LastY = y;
 
         StringBuilder sb = new(frame.Data.Length + 48);
         sb.Append("\x1b[0m");
@@ -235,10 +262,27 @@ namespace image_flip_bosch.CLI.Sixel
         sb.Append("\x1b[0m");
         sb.Append("\x1b[").Append(_cursorY + 1).Append(';').Append(_cursorX + 1).Append('H');
 
-        image_flip_bosch.CLI.Utils.ConsoleTap.Note($"sixel at {x},{y} {w}x{h} chars={frame.Data.Length}");
         Console.Out.Write(sb.ToString());
         Console.Out.Flush();
+        entry.Changed = false;
       }
+
+      _lastEmitTicks = DateTime.UtcNow.Ticks;
+    }
+
+    private void ScheduleRetry(TimeSpan delay, SixelImageControl control)
+    {
+      lock (_lock)
+      {
+        if (_throttleScheduled) return;
+        _throttleScheduled = true;
+      }
+
+      _ = Task.Delay(delay).ContinueWith(_ =>
+      {
+        lock (_lock) _throttleScheduled = false;
+        control.RequestRepaint();
+      });
     }
   }
 }

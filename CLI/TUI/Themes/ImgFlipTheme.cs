@@ -1,8 +1,7 @@
-using SharpConsoleUI;
-using SharpConsoleUI.Themes;
-
 namespace image_flip_bosch.CLI.TUI.Themes
 {
+  using SharpConsoleUI;
+  using SharpConsoleUI.Themes;
 
   internal sealed class ImgFlipTheme : PaletteTheme
   {
@@ -16,6 +15,11 @@ namespace image_flip_bosch.CLI.TUI.Themes
       Mode = ThemeMode.Dark,
     })
     {
+      TopBarBackgroundColor = Color.FromHex("#3B82F6");
+      TopBarForegroundColor = Color.FromHex("#FFFFFF");
+      BottomBarBackgroundColor = Color.FromHex("#E5E7EB");
+      BottomBarForegroundColor = Color.FromHex("#0D1117");
+      InactiveTitleForegroundColor = Color.FromHex("#6B7280");
     }
   }
 }

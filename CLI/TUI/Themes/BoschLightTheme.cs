@@ -1,8 +1,7 @@
-using SharpConsoleUI;
-using SharpConsoleUI.Themes;
-
 namespace image_flip_bosch.CLI.TUI.Themes
 {
+  using SharpConsoleUI;
+  using SharpConsoleUI.Themes;
 
   internal sealed class BoschLightTheme : PaletteTheme
   {
@@ -25,6 +24,12 @@ namespace image_flip_bosch.CLI.TUI.Themes
       ActiveBorderForegroundColor = BoschTheme.Red;
       ScrollbarThumbColor = BoschTheme.Red;
       ScrollbarTrackColor = Color.FromHex("#C5C9CE");
+      TopBarBackgroundColor = BoschTheme.Red;
+      TopBarForegroundColor = Color.FromHex("#FFFFFF");
+      BottomBarBackgroundColor = Color.FromHex("#1B1F23");
+      BottomBarForegroundColor = Color.FromHex("#EFF1F2");
+      SecondaryColor = BoschTheme.Blue;
+      InactiveTitleForegroundColor = Color.FromHex("#6B7280");
     }
   }
 }

@@ -30,6 +30,8 @@ namespace image_flip_bosch.CLI.Config
 
     public bool IncludeNsfw { get; set; }
 
+    public bool CustomBoxPositions { get; set; }
+
     public bool HasUsername => !string.IsNullOrWhiteSpace(Username);
   }
 }
