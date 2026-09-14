@@ -1,8 +1,8 @@
 services:
   backend:
     build: .
-    expose:
-      - "5080"
+    ports:
+      - "5080:5080"
     volumes:
       - memes:/data
     restart: unless-stopped
