@@ -1,8 +1,8 @@
-namespace image_flip_bosch.CLI.TUI.Themes
-{
-  using SharpConsoleUI;
-  using SharpConsoleUI.Themes;
+using SharpConsoleUI;
+using SharpConsoleUI.Themes;
 
+namespace image_flip_bosch.CLI.TUI.Themes.ImgFlip
+{
   internal sealed class ImgFlipTheme : PaletteTheme
   {
     public const string ThemeName = "Imgflip";

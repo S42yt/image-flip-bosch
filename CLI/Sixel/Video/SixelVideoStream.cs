@@ -1,11 +1,13 @@
-using SixLabors.ImageSharp.PixelFormats;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO.Pipes;
 using System.Threading.Channels;
+using image_flip_bosch.CLI.Sixel.Audio;
+using image_flip_bosch.CLI.Sixel.Core;
+using SixLabors.ImageSharp.PixelFormats;
 
-namespace image_flip_bosch.CLI.Sixel
+namespace image_flip_bosch.CLI.Sixel.Video
 {
   public sealed record VideoProgress(int Frame, int Dropped, TimeSpan Elapsed, double Fps, bool Finished);
 

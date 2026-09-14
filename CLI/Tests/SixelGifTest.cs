@@ -10,7 +10,8 @@ using System;
 using System.IO;
 using System.Text;
 using System.Threading.Tasks;
-  
+using image_flip_bosch.CLI.Sixel.Core;
+
 namespace image_flip_bosch.CLI.Tests
 {
 

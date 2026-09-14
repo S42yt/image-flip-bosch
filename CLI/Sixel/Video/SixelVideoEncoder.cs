@@ -1,4 +1,6 @@
-namespace image_flip_bosch.CLI.Sixel
+using image_flip_bosch.CLI.Sixel.Core;
+
+namespace image_flip_bosch.CLI.Sixel.Video
 {
   public sealed class SixelVideoEncoder
   {

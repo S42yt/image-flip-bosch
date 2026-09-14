@@ -16,7 +16,7 @@ namespace image_flip_bosch.CLI.TUI.Themes
 
       Name = name;
       Description = description;
-      if (palette.Mode is ThemeMode mode) Mode = mode;
+      if (palette.Mode is { } mode) Mode = mode;
     }
   }
 }

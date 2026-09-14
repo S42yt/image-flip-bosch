@@ -10,6 +10,8 @@ using SharpConsoleUI;
 using SharpConsoleUI.Configuration;
 using SharpConsoleUI.Drivers;
 using System.Text;
+using image_flip_bosch.CLI.Sixel.Core;
+using image_flip_bosch.CLI.Utils.Logger;
 
 namespace image_flip_bosch.CLI
 {
@@ -28,7 +30,7 @@ namespace image_flip_bosch.CLI
       ConfigStore<AppConfig> configStore = new();
       AppConfig config = configStore.Load();
       config.ApplyProxy();
-      ImgflipSetup setup = new(configStore);
+      ImgFlipSetup setup = new(configStore);
 
       switch (args.Length)
       {

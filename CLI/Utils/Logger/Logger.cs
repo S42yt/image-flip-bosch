@@ -1,18 +1,7 @@
 using System.Text;
 
-namespace image_flip_bosch.CLI.Utils
+namespace image_flip_bosch.CLI.Utils.Logger
 {
-
-  public enum LogLevel
-  {
-    Debug,
-    Info,
-    Warn,
-    Error,
-  }
-
-  public sealed record LogEntry(DateTime Time, LogLevel Level, string Message, Exception? Exception);
-
   public static class Logger
   {
     private static readonly Lock Lock = new();

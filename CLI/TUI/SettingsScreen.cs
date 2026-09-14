@@ -12,7 +12,7 @@ namespace image_flip_bosch.CLI.TUI
   internal sealed class SettingsScreen : NanoScreen
   {
     private readonly ConfigStore<AppConfig> _configStore;
-    private readonly ImgflipSetup _setup;
+    private readonly ImgFlipSetup _setup;
     private readonly Action? _onSaved;
 
     private readonly PromptControl _username;
@@ -25,7 +25,7 @@ namespace image_flip_bosch.CLI.TUI
     private readonly PromptControl _proxy;
     private readonly MarkupControl _account;
 
-    public SettingsScreen(ConsoleWindowSystem ws, ConfigStore<AppConfig> configStore, ImgflipSetup setup, Action? onSaved = null)
+    public SettingsScreen(ConsoleWindowSystem ws, ConfigStore<AppConfig> configStore, ImgFlipSetup setup, Action? onSaved = null)
       : base(ws, "Settings")
     {
       _configStore = configStore;

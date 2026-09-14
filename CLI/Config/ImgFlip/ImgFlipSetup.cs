@@ -4,7 +4,7 @@ using image_flip_bosch.ImgFlip.Auth;
 namespace image_flip_bosch.CLI.Config.ImgFlip
 {
 
-  public sealed class ImgflipSetup(ConfigStore<AppConfig>? config = null, ImgFlipCredentialStore? credentials = null)
+  public sealed class ImgFlipSetup(ConfigStore<AppConfig>? config = null, ImgFlipCredentialStore? credentials = null)
   {
     private readonly ConfigStore<AppConfig> _config = config ?? new ConfigStore<AppConfig>();
     private readonly ImgFlipCredentialStore _credentials = credentials ?? new ImgFlipCredentialStore();

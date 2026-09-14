@@ -2,14 +2,8 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 
-namespace image_flip_bosch.CLI.Utils
+namespace image_flip_bosch.CLI.Utils.MemeFeed
 {
-  public sealed record MemeFeedItem(long Id, string User, string ContentType, DateTime CreatedAt, int Size, int Score, int MyVote)
-  {
-    public int Score { get; set; } = Score;
-
-    public int MyVote { get; set; } = MyVote;
-  }
 
   public sealed class MemeFeedClient(string baseUrl)
   {

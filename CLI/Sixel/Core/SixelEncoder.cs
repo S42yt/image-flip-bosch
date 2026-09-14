@@ -5,7 +5,7 @@ using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
 using SixLabors.ImageSharp.Processing.Processors.Quantization;
 
-namespace image_flip_bosch.CLI.Sixel
+namespace image_flip_bosch.CLI.Sixel.Core
 {
 
   public sealed record SixelStripe(int Row, byte[] Data, bool Changed);

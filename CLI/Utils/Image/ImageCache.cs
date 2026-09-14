@@ -33,7 +33,7 @@ namespace image_flip_bosch.CLI.Utils.Image
       _ownsHttp = httpClient is null;
       _http = httpClient ?? new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
 
-      Logger.Info($"ImageCache using {_root} (TTL {TimeToLive}).");
+      Logger.Logger.Info($"ImageCache using {_root} (TTL {TimeToLive}).");
       _sweeper = Task.Run(() => SweepLoopAsync(_cts.Token));
     }
     public async Task<string> GetAsync(string url, CancellationToken ct = default)
@@ -47,7 +47,7 @@ namespace image_flip_bosch.CLI.Utils.Image
         string? existing = FindFile(key);
         if (existing is not null && !IsExpired(existing))
         {
-          Logger.Debug($"Cache hit: {url}");
+          Logger.Logger.Debug($"Cache hit: {url}");
           return existing;
         }
 
@@ -85,18 +85,18 @@ namespace image_flip_bosch.CLI.Utils.Image
       int removed = Directory.EnumerateFiles(_root).Count(file => IsExpired(file) && TryDelete(file));
 
       if (removed > 0)
-        Logger.Info($"Cache sweep removed {removed} expired file(s).");
+        Logger.Logger.Info($"Cache sweep removed {removed} expired file(s).");
     }
     public void Clear()
     {
       foreach (string file in Directory.EnumerateFiles(_root))
         TryDelete(file);
-      Logger.Info("Cache cleared.");
+      Logger.Logger.Info("Cache cleared.");
     }
 
     private async Task<string> DownloadAsync(string url, string key, CancellationToken ct)
     {
-      Logger.Info($"Downloading {url}");
+      Logger.Logger.Info($"Downloading {url}");
 
       using HttpResponseMessage response =
         await _http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, ct);
@@ -121,7 +121,7 @@ namespace image_flip_bosch.CLI.Utils.Image
       catch (Exception ex)
       {
         TryDelete(tempPath);
-        Logger.Error($"Download failed: {url}", ex);
+        Logger.Logger.Error($"Download failed: {url}", ex);
         throw;
       }
     }
@@ -138,7 +138,7 @@ namespace image_flip_bosch.CLI.Utils.Image
       catch (OperationCanceledException) { }
       catch (Exception ex)
       {
-        Logger.Error("Cache sweeper crashed.", ex);
+        Logger.Logger.Error("Cache sweeper crashed.", ex);
       }
     }
 
@@ -194,7 +194,7 @@ namespace image_flip_bosch.CLI.Utils.Image
       }
       catch (IOException ex)
       {
-        Logger.Warn($"Could not delete {path}: {ex.Message}");
+        Logger.Logger.Warn($"Could not delete {path}: {ex.Message}");
         return false;
       }
     }

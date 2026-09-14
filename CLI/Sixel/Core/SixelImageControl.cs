@@ -3,7 +3,7 @@ using SharpConsoleUI.Controls;
 using SharpConsoleUI.Layout;
 using SixLabors.ImageSharp.PixelFormats;
 
-namespace image_flip_bosch.CLI.Sixel
+namespace image_flip_bosch.CLI.Sixel.Core
 {
 
   public class SixelImageControl : BaseControl

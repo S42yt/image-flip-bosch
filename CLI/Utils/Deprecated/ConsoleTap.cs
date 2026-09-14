@@ -1,5 +1,6 @@
 using System.Text;
-namespace image_flip_bosch.CLI.Utils
+
+namespace image_flip_bosch.CLI.Utils.Deprecated
 
 {
   [Obsolete("Class was used to fix a Memory bug, now not needed anymore")]
