@@ -45,3 +45,6 @@ Desktop.ini
 # Env Files
 .env
 *.db
+
+# Idea folder
+.idea/
