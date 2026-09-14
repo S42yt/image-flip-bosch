@@ -202,7 +202,7 @@ namespace image_flip_bosch.CLI.TUI
         c.ImgFlip.NoWatermark = _noWatermark.Checked;
         c.ImgFlip.IncludeNsfw = _includeNsfw.Checked;
         c.ImgFlip.CustomBoxPositions = _customBoxes.Checked;
-      });
+      }).ApplyProxy();
 
       if (username.Length > 0 && password.Length > 0)
       {
@@ -216,7 +216,7 @@ namespace image_flip_bosch.CLI.TUI
       }
 
       _account.SetContent([AccountLine()]);
-      Say(proxyChanged ? "Settings saved, restart to apply the proxy" : "Settings saved", NotificationSeverity.Success);
+      Say(proxyChanged ? "Settings saved, feed uses the new proxy now, restart for Imgflip" : "Settings saved", NotificationSeverity.Success);
       _onSaved?.Invoke();
     }
 

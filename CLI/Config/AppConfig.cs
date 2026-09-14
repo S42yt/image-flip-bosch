@@ -12,11 +12,26 @@ namespace image_flip_bosch.CLI.Config
 
     public string? Proxy { get; set; }
 
+    private static readonly System.Net.IWebProxy SystemProxy = HttpClient.DefaultProxy;
+
+    private static readonly string[] PrivateHosts =
+    [
+      @"^https?://(localhost|127\.)",
+      @"^https?://10\.",
+      @"^https?://192\.168\.",
+      @"^https?://172\.(1[6-9]|2\d|3[01])\.",
+      @"^https?://\[::1\]",
+    ];
+
     public void ApplyProxy()
     {
-      if (string.IsNullOrWhiteSpace(Proxy)) return;
+      if (string.IsNullOrWhiteSpace(Proxy))
+      {
+        HttpClient.DefaultProxy = SystemProxy;
+        return;
+      }
       string url = Proxy.Contains("://") ? Proxy : "http://" + Proxy;
-      HttpClient.DefaultProxy = new System.Net.WebProxy(url) { BypassProxyOnLocal = true };
+      HttpClient.DefaultProxy = new System.Net.WebProxy(url, BypassOnLocal: true, BypassList: PrivateHosts);
     }
   }
 

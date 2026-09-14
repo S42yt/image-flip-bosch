@@ -14,7 +14,7 @@ namespace image_flip_bosch.CLI.Utils
   public sealed class MemeFeedClient(string baseUrl)
   {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
-    private readonly HttpClient _http = new(new SocketsHttpHandler { UseProxy = false })
+    private readonly HttpClient _http = new()
     {
       BaseAddress = new Uri(baseUrl.TrimEnd('/') + "/"),
       Timeout = TimeSpan.FromSeconds(30),

@@ -29,6 +29,7 @@ namespace image_flip_bosch.Backend
         await SchemaUpgrade.RunAsync(scope.ServiceProvider.GetRequiredService<MemeDbContext>());
       }
 
+      app.MapGet("/", () => "meme feed up");
       app.MapMemes();
       app.Lifetime.ApplicationStarted.Register(() =>
       {
