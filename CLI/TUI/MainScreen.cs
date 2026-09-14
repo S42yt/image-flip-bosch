@@ -208,7 +208,7 @@ namespace image_flip_bosch.CLI.TUI
     private List<string> ShortcutRows() =>
     [
       _chrome.Key("F5", "Caption") + _chrome.Key("F6", "Copy URL") + _chrome.Key("F7", "Save") + _chrome.Key("F8", "Settings") + (GifsAvailable ? _chrome.Key("F2", GifMode ? "Images" : "GIFs") : string.Empty),
-      _chrome.Key("F9", "Reload") + _chrome.Key("F3", "Theme") + _chrome.Key("F1", "Help") + _chrome.Key("F4", "Exit"),
+      _chrome.Key("F10", "AI") + _chrome.Key("F9", "Reload") + _chrome.Key("F3", "Theme") + _chrome.Key("F1", "Help") + _chrome.Key("F4", "Exit"),
     ];
 
     private string HeaderText(Meme? meme)
@@ -238,6 +238,7 @@ namespace image_flip_bosch.CLI.TUI
         case ConsoleKey.F7: _ = SaveCurrentAsync(); e.Handled = true; break;
         case ConsoleKey.F8: OpenSettings(); e.Handled = true; break;
         case ConsoleKey.F9: _ = LoadTemplatesAsync(); e.Handled = true; break;
+        case ConsoleKey.F10: OpenAIChat(); e.Handled = true; break;
         case ConsoleKey.Escape: _window.FocusControl(_filter); e.Handled = true; break;
         //case ConsoleKey.C when ctrl: CopyResultUrl(); e.Handled = true; break;
         //case ConsoleKey.S when ctrl: _ = SaveCurrentAsync(); e.Handled = true; break;
@@ -281,6 +282,9 @@ namespace image_flip_bosch.CLI.TUI
         _imgflip.ResetPremium();
         _ = RefreshPremiumAsync();
       }).Show();
+
+    private void OpenAIChat() =>
+      new AIChatScreen(_ws, _configStore, _imgflip, _allMemes).Show();
 
     private void Say(string text, NotificationSeverity? severity = null)
     {
