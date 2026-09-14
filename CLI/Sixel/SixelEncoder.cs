@@ -295,6 +295,33 @@ namespace image_flip_bosch.CLI.Sixel
         o.Byte((byte)'#').Int(i).Ascii(";2;").Int(c.R * 100 / 255).Byte((byte)';').Int(c.G * 100 / 255).Byte((byte)';').Int(c.B * 100 / 255);
       }
 
+      int groups = Math.Clamp(h / 120, 1, Environment.ProcessorCount);
+      if (groups == 1)
+      {
+        EncodeBands(indices, w, yFrom, yTo, colors, o);
+      }
+      else
+      {
+        int bandsTotal = (h + 5) / 6;
+        int bandsPerGroup = (bandsTotal + groups - 1) / groups;
+        ByteBuffer[] parts = new ByteBuffer[groups];
+        Parallel.For(0, groups, g =>
+        {
+          int from = yFrom + g * bandsPerGroup * 6;
+          int to = Math.Min(yTo, from + bandsPerGroup * 6);
+          ByteBuffer part = new(Math.Max(1024, w * (to - from) / 3));
+          if (from < to) EncodeBands(indices, w, from, to, colors, part);
+          parts[g] = part;
+        });
+        foreach (ByteBuffer part in parts) o.Bytes(part.AsSpan());
+      }
+
+      o.Ascii("\e\\");
+      return o.ToArray();
+    }
+
+    private static void EncodeBands(byte[] indices, int w, int yFrom, int yTo, int colors, ByteBuffer o)
+    {
       int cap = 6 * w;
       int[] lastX = new int[colors];
       int[] lastPos = new int[colors];
@@ -393,9 +420,6 @@ namespace image_flip_bosch.CLI.Sixel
 
         o.Byte((byte)'-');
       }
-
-      o.Ascii("\e\\");
-      return o.ToArray();
     }
 
     private sealed class ByteBuffer(int capacity)
@@ -431,6 +455,16 @@ namespace image_flip_bosch.CLI.Sixel
         for (int i = 0; i < count; i++) _buf[_len++] = ch;
         return this;
       }
+
+      public ByteBuffer Bytes(ReadOnlySpan<byte> data)
+      {
+        if (_len + data.Length > _buf.Length) Grow(data.Length);
+        data.CopyTo(_buf.AsSpan(_len));
+        _len += data.Length;
+        return this;
+      }
+
+      public ReadOnlySpan<byte> AsSpan() => _buf.AsSpan(0, _len);
 
       public byte[] ToArray() => _buf.AsSpan(0, _len).ToArray();
 

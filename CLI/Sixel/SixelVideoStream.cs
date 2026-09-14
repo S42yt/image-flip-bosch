@@ -242,14 +242,17 @@ namespace image_flip_bosch.CLI.Sixel
         SingleWriter = true,
       });
 
-      var producer = Task.Run(async () =>
+      var rawQueue = Channel.CreateBounded<byte[]>(new BoundedChannelOptions(3) { SingleReader = true, SingleWriter = true });
+      var pool = Channel.CreateUnbounded<byte[]>();
+      for (int i = 0; i < 5; i++) pool.Writer.TryWrite(new byte[frameBytes]);
+
+      var reader = Task.Run(async () =>
       {
-        SixelVideoEncoder encoder = new(cols, rows, cellWidth, cellHeight, maxColors);
-        byte[] raw = new byte[frameBytes];
         try
         {
           while (true)
           {
+            byte[] raw = await pool.Reader.ReadAsync(ct);
             try
             {
               await rawFrames.ReadExactlyAsync(raw, ct);
@@ -258,7 +261,26 @@ namespace image_flip_bosch.CLI.Sixel
             {
               break;
             }
-            await queue.Writer.WriteAsync(encoder.Encode(raw, fps), ct);
+            await rawQueue.Writer.WriteAsync(raw, ct);
+          }
+          rawQueue.Writer.Complete();
+        }
+        catch (Exception ex)
+        {
+          rawQueue.Writer.Complete(ex);
+        }
+      }, ct);
+
+      var producer = Task.Run(async () =>
+      {
+        SixelVideoEncoder encoder = new(cols, rows, cellWidth, cellHeight, maxColors);
+        try
+        {
+          await foreach (byte[] raw in rawQueue.Reader.ReadAllAsync(ct))
+          {
+            SixelFrame frame = encoder.Encode(raw, fps);
+            pool.Writer.TryWrite(raw);
+            await queue.Writer.WriteAsync(frame, ct);
           }
           queue.Writer.Complete();
         }
@@ -288,7 +310,7 @@ namespace image_flip_bosch.CLI.Sixel
           due = now;
         }
 
-        bool late = now - due > lateLimit;
+        bool late = now - due > lateLimit && queue.Reader.Count > 0;
         bool starving = now - lastShown > TimeSpan.FromMilliseconds(500);
         if (late && !starving)
         {
@@ -310,6 +332,7 @@ namespace image_flip_bosch.CLI.Sixel
       }
 
       await producer;
+      await reader;
       onProgress?.Invoke(new VideoProgress(index, dropped, start + clock.Elapsed, shown / Math.Max(0.001, clock.Elapsed.TotalSeconds), true));
     }
 
