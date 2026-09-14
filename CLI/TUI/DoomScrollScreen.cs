@@ -185,14 +185,12 @@ namespace image_flip_bosch.CLI.TUI
       if (_loading) return;
       _loading = true;
 
-      // UI für den Ladevorgang vorbereiten
       await Ws.InvokeAsync(() => {
         _caption.SetContent([Chrome.MutedText(" Loading feed...")]);
       });
 
       try
       {
-        // Sicherheits-Check: Ist der Feed-Client überhaupt da?
         if (_feed is null)
         {
           throw new InvalidOperationException("MemeFeedClient is not initialized.");
@@ -201,7 +199,6 @@ namespace image_flip_bosch.CLI.TUI
         IEnumerable<long> exclude = reset ? [] : _items.Select(i => i.Id);
         List<MemeFeedItem> page = await _feed.ListAsync(exclude, _user, PageSize);
 
-        // Verarbeitung der geladenen Daten im UI-Thread
         await Ws.InvokeAsync(() => {
           if (reset)
           {
@@ -237,7 +234,6 @@ namespace image_flip_bosch.CLI.TUI
       }
       catch (Exception ex)
       {
-        // Fehlerbehandlung: Fehlermeldung im Caption anzeigen
         await Ws.InvokeAsync(() =>
         {
           string baseUrl = _feed?.BaseUrl?.ToString() ?? "an unknown URL";
