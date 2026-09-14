@@ -259,7 +259,7 @@ namespace image_flip_bosch.CLI.TUI
         //case ConsoleKey.O when ctrl: OpenSettings(); e.Handled = true; break;
         //case ConsoleKey.X when ctrl: _ws.Shutdown(); e.Handled = true; break;
         default:
-          throw new ArgumentOutOfRangeException();
+          return;
       }
 
       e.Handled = true;
