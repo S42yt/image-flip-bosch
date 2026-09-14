@@ -4,7 +4,6 @@ using image_flip_bosch.CLI.Sixel;
 using image_flip_bosch.CLI.TUI;
 using image_flip_bosch.CLI.Utils;
 using image_flip_bosch.CLI.Utils.Image;
-using image_flip_bosch.Backend;
 using image_flip_bosch.ImgFlip;
 using image_flip_bosch.ImgFlip.Auth;
 using SharpConsoleUI;
@@ -33,8 +32,6 @@ namespace image_flip_bosch.CLI
 
       switch (args.Length)
       {
-        case > 0 when args[0] == "serve":
-          return await BackendHost.RunAsync(args[1..]);
         case > 0 when args[0] is "vidtest" or "stream":
           return await Tests.SixelVideoTest.RunAsync(args.Length > 1 ? args[1] : null, args.Length > 2 && int.TryParse(args[2], out int fps) ? fps : 24, args.Length > 3 && int.TryParse(args[3], out int colors) ? colors : 128);
         case > 0 when args[0] == "giftest":
@@ -72,9 +69,7 @@ namespace image_flip_bosch.CLI
       int code = await Task.Run(ws.Run);
       Logger.MinimumLevel = LogLevel.Error;
       Logger.UseConsole();
-      //Logger.Info("Application finished.");
       cache.Clear();
-      
       return code;
     }
   }

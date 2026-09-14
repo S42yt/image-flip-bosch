@@ -3,7 +3,7 @@ using image_flip_bosch.ImgFlip.Requests;
 
 namespace image_flip_bosch.ImgFlip
 {
-  internal interface IImgFlipApi
+  public interface IImgFlipApi
   {
     /*
      * Liefert ein Array beliebter Meme-Vorlagen. Anzahl, 
