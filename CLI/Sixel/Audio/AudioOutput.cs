@@ -1,6 +1,6 @@
 using NAudio.Wave;
 
-namespace image_flip_bosch.CLI.Sixel
+namespace image_flip_bosch.CLI.Sixel.Audio
 {
   public sealed class AudioOutput : IDisposable
   {

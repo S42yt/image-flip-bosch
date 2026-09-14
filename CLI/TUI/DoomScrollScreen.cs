@@ -1,6 +1,7 @@
 using image_flip_bosch.CLI.TUI.Core;
 using image_flip_bosch.CLI.Utils;
 using image_flip_bosch.CLI.Utils.Image;
+using image_flip_bosch.CLI.Utils.MemeFeed;
 using SharpConsoleUI;
 using SharpConsoleUI.Builders;
 using SharpConsoleUI.Controls;

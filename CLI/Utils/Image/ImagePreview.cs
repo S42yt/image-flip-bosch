@@ -1,4 +1,5 @@
 using image_flip_bosch.CLI.Sixel;
+using image_flip_bosch.CLI.Sixel.Core;
 using SharpConsoleUI;
 
 //mal gucken ob das so bleibt oder ob die andere version geiler ist mashallah :P

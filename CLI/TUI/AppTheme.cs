@@ -1,5 +1,9 @@
 using image_flip_bosch.CLI.Config;
 using image_flip_bosch.CLI.TUI.Themes;
+using image_flip_bosch.CLI.TUI.Themes.Bosch;
+using image_flip_bosch.CLI.TUI.Themes.Catppuccin;
+using image_flip_bosch.CLI.TUI.Themes.Catppuccin.Theme;
+using image_flip_bosch.CLI.TUI.Themes.ImgFlip;
 using SharpConsoleUI;
 using SharpConsoleUI.Core;
 using SharpConsoleUI.Themes;

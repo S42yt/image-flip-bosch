@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>image_flip_bosch.CLI</RootNamespace>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <ApplicationIcon>..\image_1789388467843071.ico</ApplicationIcon>
+    <RuntimeIdentifier Condition="'$(OS)' == 'Windows_NT'">win-x64</RuntimeIdentifier>
+    <RuntimeIdentifier Condition="'$(OS)' != 'Windows_NT'">linux-x64</RuntimeIdentifier>
+    <SelfContained>false</SelfContained>
+    <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+    <DebugType Condition="'$(Configuration)' == 'Release'">none</DebugType>
+    <PackageId>CLI</PackageId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\ImgFlip\ImgFlip.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="JetBrains.Annotations" Version="2026.2.0" />
+    <PackageReference Include="NAudio" Version="2.2.1" />
+    <PackageReference Include="SharpConsoleUI" Version="2.6.6" />
+    <PackageReference Include="SixLabors.ImageSharp" Version="3.1.12" />
+    <PackageReference Include="AngleSharp" Version="1.7.1" ExcludeAssets="runtime" />
+    <PackageReference Include="AngleSharp.Css" Version="1.0.1" ExcludeAssets="runtime" />
+    <PackageReference Include="TextMateSharp" Version="2.0.4" ExcludeAssets="runtime" />
+    <PackageReference Include="TextMateSharp.Grammars" Version="2.0.4" ExcludeAssets="runtime" />
+    <PackageReference Include="Onigwrap" Version="1.0.11" ExcludeAssets="runtime;native" />
+    <PackageReference Include="OpenAI" Version="2.13.0" />
+  </ItemGroup>
+
+</Project>

@@ -6,6 +6,8 @@ using SharpConsoleUI.Controls;
 using SharpConsoleUI.Drivers;
 using SharpConsoleUI.Layout;
 using System.Text;
+using image_flip_bosch.CLI.Sixel.Core;
+using image_flip_bosch.CLI.Sixel.Video;
 
 namespace image_flip_bosch.CLI.Tests
 {

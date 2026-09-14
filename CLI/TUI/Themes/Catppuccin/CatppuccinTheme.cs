@@ -1,32 +1,8 @@
 using SharpConsoleUI;
 using SharpConsoleUI.Themes;
 
-namespace image_flip_bosch.CLI.TUI.Themes
+namespace image_flip_bosch.CLI.TUI.Themes.Catppuccin
 {
-  public interface ICatppuccinPalette
-  {
-    static abstract string ThemeName { get; }
-    static abstract string ThemeDesc { get; }
-    static abstract ThemeMode ThemeMode { get; }
-
-    static abstract Color Red { get; }
-    static abstract Color Blue { get; }
-    static abstract Color Green { get; }
-    static abstract Color Yellow { get; }
-    static abstract Color Text { get; }
-    static abstract Color Subtext1 { get; }
-    static abstract Color Subtext0 { get; }
-    static abstract Color Overlay2 { get; }
-    static abstract Color Overlay1 { get; }
-    static abstract Color Overlay0 { get; }
-    static abstract Color Surface2 { get; }
-    static abstract Color Surface1 { get; }
-    static abstract Color Surface0 { get; }
-    static abstract Color Base { get; }
-    static abstract Color Mantle { get; }
-    static abstract Color Crust { get; }
-  }
-
   internal class CatppuccinTheme<TPalette> : PaletteTheme
         where TPalette : ICatppuccinPalette
   {
@@ -179,101 +155,5 @@ namespace image_flip_bosch.CLI.TUI.Themes
       StartMenuSectionHeaderBackgroundColor = Color.FromHex("#ff00ff");
       StartMenuInfoStripForegroundColor = Color.FromHex("#ff00ff");
     }
-  }
-
-  internal sealed class LatteTheme : CatppuccinTheme<LatteTheme>, ICatppuccinPalette
-  {
-    public static string ThemeName => "Latte";
-    public static string ThemeDesc => "Catppuccin Latte Theme";
-    public static ThemeMode ThemeMode => ThemeMode.Light;
-
-    public static Color Red => Color.FromHex("#d20f39");
-    public static Color Blue => Color.FromHex("#1e66f5");
-    public static Color Green => Color.FromHex("#40a02b");
-    public static Color Yellow => Color.FromHex("#df8e1d");
-    public static Color Text => Color.FromHex("#4c4f69");
-    public static Color Subtext1 => Color.FromHex("#5c5f77");
-    public static Color Subtext0 => Color.FromHex("#6c6f85");
-    public static Color Overlay2 => Color.FromHex("#7c7f93");
-    public static Color Overlay1 => Color.FromHex("#8c8fa1");
-    public static Color Overlay0 => Color.FromHex("#9ca0b0");
-    public static Color Surface2 => Color.FromHex("#acb0be");
-    public static Color Surface1 => Color.FromHex("#bcc0cc");
-    public static Color Surface0 => Color.FromHex("#ccd0da");
-    public static Color Base => Color.FromHex("#eff1f5");
-    public static Color Mantle => Color.FromHex("#e6e9ef");
-    public static Color Crust => Color.FromHex("#dce0e8");
-  }
-
-  internal sealed class FrappeTheme : CatppuccinTheme<FrappeTheme>, ICatppuccinPalette
-  {
-    public static string ThemeName => "Frappe";
-    public static string ThemeDesc => "Catppuccin Frappe Theme";
-    public static ThemeMode ThemeMode => ThemeMode.Dark;
-
-    public static Color Red => Color.FromHex("#e78284");
-    public static Color Blue => Color.FromHex("#8caaee");
-    public static Color Green => Color.FromHex("#a6d189");
-    public static Color Yellow => Color.FromHex("#e5c890");
-    public static Color Text => Color.FromHex("#c6d0f5");
-    public static Color Subtext1 => Color.FromHex("#b5bfe2");
-    public static Color Subtext0 => Color.FromHex("#a5adce");
-    public static Color Overlay2 => Color.FromHex("#949cbb");
-    public static Color Overlay1 => Color.FromHex("#838ba7");
-    public static Color Overlay0 => Color.FromHex("#737994");
-    public static Color Surface2 => Color.FromHex("#626880");
-    public static Color Surface1 => Color.FromHex("#51576d");
-    public static Color Surface0 => Color.FromHex("#414559");
-    public static Color Base => Color.FromHex("#303446");
-    public static Color Mantle => Color.FromHex("#292c3c");
-    public static Color Crust => Color.FromHex("#232634");
-  }
-
-  internal sealed class MacchiatoTheme : CatppuccinTheme<MacchiatoTheme>, ICatppuccinPalette
-  {
-    public static string ThemeName => "Macchiato";
-    public static string ThemeDesc => "Catppuccin Macchiato Theme";
-    public static ThemeMode ThemeMode => ThemeMode.Dark;
-
-    public static Color Red => Color.FromHex("#ed8796");
-    public static Color Blue => Color.FromHex("#8aadf4");
-    public static Color Green => Color.FromHex("#a6da95");
-    public static Color Yellow => Color.FromHex("#eed49f");
-    public static Color Text => Color.FromHex("#cad3f5");
-    public static Color Subtext1 => Color.FromHex("#b8c0e0");
-    public static Color Subtext0 => Color.FromHex("#a5adcb");
-    public static Color Overlay2 => Color.FromHex("#939ab7");
-    public static Color Overlay1 => Color.FromHex("#8087a2");
-    public static Color Overlay0 => Color.FromHex("#6e738d");
-    public static Color Surface2 => Color.FromHex("#5b6078");
-    public static Color Surface1 => Color.FromHex("#494d64");
-    public static Color Surface0 => Color.FromHex("#363a4f");
-    public static Color Base => Color.FromHex("#24273a");
-    public static Color Mantle => Color.FromHex("#1e2030");
-    public static Color Crust => Color.FromHex("#181926");
-  }
-
-  internal sealed class MochaTheme : CatppuccinTheme<MochaTheme>, ICatppuccinPalette
-  {
-    public static string ThemeName => "Mocha";
-    public static string ThemeDesc => "Catppuccin Mocha Theme";
-    public static ThemeMode ThemeMode => ThemeMode.Dark;
-
-    public static Color Red => Color.FromHex("#f38ba8");
-    public static Color Blue => Color.FromHex("#89b4fa");
-    public static Color Green => Color.FromHex("#a6e3a1");
-    public static Color Yellow => Color.FromHex("#f9e2af");
-    public static Color Text => Color.FromHex("#cdd6f4");
-    public static Color Subtext1 => Color.FromHex("#bac2de");
-    public static Color Subtext0 => Color.FromHex("#a6adc8");
-    public static Color Overlay2 => Color.FromHex("#9399b2");
-    public static Color Overlay1 => Color.FromHex("#7f849c");
-    public static Color Overlay0 => Color.FromHex("#6c7086");
-    public static Color Surface2 => Color.FromHex("#585b70");
-    public static Color Surface1 => Color.FromHex("#45475a");
-    public static Color Surface0 => Color.FromHex("#313244");
-    public static Color Base => Color.FromHex("#1e1e2e");
-    public static Color Mantle => Color.FromHex("#181825");
-    public static Color Crust => Color.FromHex("#11111b");
   }
 }

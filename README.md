@@ -90,4 +90,4 @@ Debug: -DShowDebugScreen
 Gif Test: giftest
 Login: login
 Logout: logout
-Serve Backend: serve
+Serve Backend: `dotnet run --project Backend` (eigene exe, image-flip-backend)

@@ -5,7 +5,7 @@ namespace image_flip_bosch.ImgFlip.Auth
 {
   public sealed class ImgFlipException(string message) : Exception(message);
 
-  internal sealed class ImgflipSession(IImgFlipApi api, Func<ImgFlipCredentials?> credentials)
+  public sealed class ImgflipSession(IImgFlipApi api, Func<ImgFlipCredentials?> credentials)
   {
     private static readonly ImgFlipCredentials Anonymous = new(string.Empty, string.Empty);
 

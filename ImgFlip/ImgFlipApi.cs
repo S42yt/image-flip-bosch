@@ -6,7 +6,7 @@ using image_flip_bosch.ImgFlip.Requests;
 
 namespace image_flip_bosch.ImgFlip
 {
-  internal class ImgFlipApi : IImgFlipApi
+  public class ImgFlipApi : IImgFlipApi
   {
     private readonly HttpClient _httpClient = new()
     {

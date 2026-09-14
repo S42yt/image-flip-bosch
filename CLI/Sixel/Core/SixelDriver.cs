@@ -4,6 +4,7 @@ using SharpConsoleUI.Drivers;
 using SharpConsoleUI.Layout;
 using System.Buffers;
 using System.Text;
+using image_flip_bosch.CLI.Sixel.Core;
 using Size = SharpConsoleUI.Helpers.Size;
 
 namespace image_flip_bosch.CLI.Sixel

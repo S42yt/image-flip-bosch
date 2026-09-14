@@ -1,6 +1,8 @@
+using image_flip_bosch.CLI.Sixel.Audio;
+using image_flip_bosch.CLI.Sixel.Core;
 using SharpConsoleUI;
 
-namespace image_flip_bosch.CLI.Sixel
+namespace image_flip_bosch.CLI.Sixel.Video
 {
   public sealed class SixelVideoControl : SixelImageControl
   {

@@ -1,3 +1,5 @@
+using image_flip_bosch.CLI.Sixel.Video;
+
 namespace image_flip_bosch.CLI.Config
 {
   public sealed class AppConfig
@@ -27,17 +29,17 @@ namespace image_flip_bosch.CLI.Config
 
     public void ApplyProxy()
     {
-      Sixel.SixelVideoStream.MaxHeight = Stream.MaxHeight;
-      Sixel.SixelVideoStream.AllowInsecureTls = Stream.AllowInsecureTls;
+      SixelVideoStream.MaxHeight = Stream.MaxHeight;
+      SixelVideoStream.AllowInsecureTls = Stream.AllowInsecureTls;
       if (string.IsNullOrWhiteSpace(Proxy))
       {
         HttpClient.DefaultProxy = SystemProxy;
-        Sixel.SixelVideoStream.Proxy = null;
+        SixelVideoStream.Proxy = null;
         return;
       }
       string url = Proxy.Contains("://") ? Proxy : "http://" + Proxy;
       HttpClient.DefaultProxy = new System.Net.WebProxy(url, BypassOnLocal: true, BypassList: PrivateHosts);
-      Sixel.SixelVideoStream.Proxy = url;
+      SixelVideoStream.Proxy = url;
     }
   }
 

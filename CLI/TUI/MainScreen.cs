@@ -3,6 +3,8 @@ using image_flip_bosch.CLI.Config.ImgFlip;
 using image_flip_bosch.CLI.TUI.Core;
 using image_flip_bosch.CLI.Utils;
 using image_flip_bosch.CLI.Utils.Image;
+using image_flip_bosch.CLI.Utils.Logger;
+using image_flip_bosch.CLI.Utils.MemeFeed;
 using image_flip_bosch.CLI.Utils.Native;
 using image_flip_bosch.ImgFlip.Auth;
 using image_flip_bosch.ImgFlip.Enum;
@@ -28,7 +30,7 @@ namespace image_flip_bosch.CLI.TUI
     private readonly ImageCache _cache;
     private readonly ImgflipSession _imgflip;
     private readonly ConfigStore<AppConfig> _configStore;
-    private readonly ImgflipSetup _setup;
+    private readonly ImgFlipSetup _setup;
     private MemeFeedClient _feed;
 
     private readonly MarkupControl _header;
@@ -61,7 +63,7 @@ namespace image_flip_bosch.CLI.TUI
     private CancellationTokenSource? _messageCts;
     private CancellationTokenSource? _searchCts;
 
-    public MainScreen(ConsoleWindowSystem ws, ImageCache cache, ImgflipSession imgflip, ConfigStore<AppConfig> configStore, ImgflipSetup setup, AppOptions options)
+    public MainScreen(ConsoleWindowSystem ws, ImageCache cache, ImgflipSession imgflip, ConfigStore<AppConfig> configStore, ImgFlipSetup setup, AppOptions options)
     {
       _ws = ws;
       _cache = cache;

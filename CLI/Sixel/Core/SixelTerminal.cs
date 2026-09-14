@@ -2,7 +2,7 @@
 using System.Runtime.InteropServices;
 using System.Text;
 
-namespace image_flip_bosch.CLI.Sixel
+namespace image_flip_bosch.CLI.Sixel.Core
 {
 
   public sealed record SixelCapabilities(bool Supported, int CellWidth, int CellHeight)
