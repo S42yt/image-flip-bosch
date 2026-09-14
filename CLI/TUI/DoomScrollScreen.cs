@@ -184,47 +184,63 @@ namespace image_flip_bosch.CLI.TUI
     {
       if (_loading) return;
       _loading = true;
+
+      await Ws.InvokeAsync(() => {
+        _caption.SetContent([Chrome.MutedText(" Loading feed...")]);
+      });
+
       try
       {
+        if (_feed is null)
+        {
+          throw new InvalidOperationException("MemeFeedClient is not initialized.");
+        }
+
         IEnumerable<long> exclude = reset ? [] : _items.Select(i => i.Id);
         List<MemeFeedItem> page = await _feed.ListAsync(exclude, _user, PageSize);
 
-        if (reset)
-        {
-          _items.Clear();
-          _index = -1;
-          _exhausted = false;
-          await _previewCts?.CancelAsync()!;
-          await Ws.InvokeAsync(_preview.Clear);
-        }
+        await Ws.InvokeAsync(() => {
+          if (reset)
+          {
+            _items.Clear();
+            _index = -1;
+            _exhausted = false;
+            _preview.Clear();
+          }
 
-        _items.AddRange(page);
-        if (page.Count < PageSize) _exhausted = true;
+          _items.AddRange(page);
+          if (page.Count < PageSize) _exhausted = true;
 
-        if (_items.Count == 0)
-        {
-          Say("No memes in the feed yet", NotificationSeverity.Warning);
-          RefreshHeader();
-          RefreshCaption();
-        }
-        else if (_index < 0)
-        {
-          Say($"Loaded {_items.Count} memes");
-          Select(0);
-        }
-        else if (_advanceAfterLoad && _index + 1 < _items.Count)
-        {
-          Select(_index + 1);
-        }
-        else if (_advanceAfterLoad)
-        {
-          Say("Seen everything, F9 shuffles again");
-          RefreshHeader();
-        }
+          if (_items.Count == 0)
+          {
+            _caption.SetContent([Chrome.MutedText(" No memes in the feed yet")]);
+            RefreshHeader();
+          }
+          else if (_index < 0)
+          {
+            Say($"Loaded {_items.Count} memes");
+            Select(0);
+          }
+          else if (_advanceAfterLoad && _index + 1 < _items.Count)
+          {
+            Select(_index + 1);
+          }
+          else if (_advanceAfterLoad)
+          {
+            Say("Seen everything, F9 shuffles again");
+            RefreshHeader();
+          }
+        });
       }
       catch (Exception ex)
       {
-        Say($"Feed unavailable at {_feed.BaseUrl}: {ex.Message}", NotificationSeverity.Danger);
+        await Ws.InvokeAsync(() =>
+        {
+          string baseUrl = _feed?.BaseUrl?.ToString() ?? "an unknown URL";
+          string errorMessage = $"Feed unavailable at {baseUrl}: {ex.Message}";
+          _caption.SetContent([Chrome.HighlightText($" Error: {errorMessage}")]);
+          RefreshHeader();
+        });
       }
       finally
       {

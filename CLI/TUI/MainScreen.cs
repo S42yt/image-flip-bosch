@@ -1,7 +1,6 @@
 using image_flip_bosch.CLI.Config;
 using image_flip_bosch.CLI.Config.ImgFlip;
 using image_flip_bosch.CLI.TUI.Core;
-using image_flip_bosch.CLI.Utils;
 using image_flip_bosch.CLI.Utils.Image;
 using image_flip_bosch.CLI.Utils.Logger;
 using image_flip_bosch.CLI.Utils.MemeFeed;
