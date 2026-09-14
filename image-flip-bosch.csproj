@@ -6,12 +6,7 @@
     <RootNamespace>image_flip_bosch</RootNamespace>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <RuntimeIdentifier Condition="'$(OS)' == 'Windows_NT'">win-x64</RuntimeIdentifier>
-    <RuntimeIdentifier Condition="'$(OS)' != 'Windows_NT'">linux-x64</RuntimeIdentifier>
-    <SelfContained>false</SelfContained>
-    <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
-    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
-    <DebugType Condition="'$(Configuration)' == 'Release'">none</DebugType>
+    <ApplicationIcon>image_1789388467843071.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>
@@ -21,7 +16,6 @@
   <ItemGroup>
     <PackageReference Include="JetBrains.Annotations" Version="2026.2.0" />
     <PackageReference Include="JetBrains.Annotations" Version="2024.3.0" />
-    <PackageReference Include="NAudio" Version="2.2.1" />
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.12" />
     <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.12" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.0" />
@@ -33,6 +27,10 @@
 
   <ItemGroup>
     <EditorConfigFiles Remove="C:\Users\OWU1FE\Desktop\image-flip-bosch\.editorconfig" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="image_1789388467843071.ico" />
   </ItemGroup>
 
   <ItemGroup>
