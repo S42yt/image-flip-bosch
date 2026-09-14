@@ -22,7 +22,7 @@ namespace image_flip_bosch.CLI.Config
 
   public sealed class FeedConfig
   {
-    public string BaseUrl { get; set; } = "http://localhost:5080";
+    public string BaseUrl { get; set; } = "https://bosch.opengl.tech";
   }
 
   public sealed class CacheConfig
