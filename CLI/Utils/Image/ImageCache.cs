@@ -61,14 +61,15 @@ namespace image_flip_bosch.CLI.Utils.Image
         gate.Release();
       }
     }
-    public bool Contains(string url) => TryGetPath(url) is not null;
+    //public bool Contains(string url) => TryGetPath(url) is not null;
 
     public string? TryGetPath(string url)
     {
       string? path = FindFile(KeyFor(url));
       return path is not null && !IsExpired(path) ? path : null;
     }
-    public bool Remove(string url)
+    
+    /*public bool Remove(string url)
     {
       string? path = FindFile(KeyFor(url));
       if (path is null) return false;
@@ -77,19 +78,14 @@ namespace image_flip_bosch.CLI.Utils.Image
       if (deleted) Logger.Info($"Removed from cache: {url}");
       return deleted;
     }
+    */
 
-    private int Sweep()
+    private void Sweep()
     {
-      int removed = 0;
-      foreach (string file in Directory.EnumerateFiles(_root))
-      {
-        if (IsExpired(file) && TryDelete(file))
-          removed++;
-      }
+      int removed = Directory.EnumerateFiles(_root).Count(file => IsExpired(file) && TryDelete(file));
 
       if (removed > 0)
         Logger.Info($"Cache sweep removed {removed} expired file(s).");
-      return removed;
     }
     public void Clear()
     {
@@ -172,7 +168,7 @@ namespace image_flip_bosch.CLI.Utils.Image
     private static string ExtensionFor(string url, string? mediaType)
     {
       string fromUrl = Path.GetExtension(new Uri(url).AbsolutePath).ToLowerInvariant();
-      if (fromUrl is ".png" or ".jpg" or ".jpeg" or ".gif" or ".webp" or ".bmp")
+      if (fromUrl is ".png" or ".jpg" or ".jpeg" or ".gif" or ".webp" or ".bmp" or ".mp4" or ".webm")
         return fromUrl;
 
       return mediaType switch
@@ -182,6 +178,8 @@ namespace image_flip_bosch.CLI.Utils.Image
         "image/gif" => ".gif",
         "image/webp" => ".webp",
         "image/bmp" => ".bmp",
+        "video/mp4" => ".mp4",
+        "video/webm" => ".webm",
         _ => ".img",
       };
     }
@@ -204,7 +202,9 @@ namespace image_flip_bosch.CLI.Utils.Image
     public async ValueTask DisposeAsync()
     {
       await _cts.CancelAsync();
-      try { await _sweeper; } catch { }
+      try { await _sweeper; }
+      catch
+      { /*ignored*/ }
       _cts.Dispose();
       if (_ownsHttp) _http.Dispose();
       foreach (SemaphoreSlim s in _locks.Values) s.Dispose();

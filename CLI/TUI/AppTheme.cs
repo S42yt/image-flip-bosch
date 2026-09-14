@@ -3,16 +3,13 @@ using image_flip_bosch.CLI.TUI.Themes;
 using SharpConsoleUI;
 using SharpConsoleUI.Core;
 using SharpConsoleUI.Themes;
-using System;
-using System.Collections.Generic;
-using System.Linq;
 
 namespace image_flip_bosch.CLI.TUI
 {
 
   internal static class AppThemes
   {
-    public const string DefaultName = BoschTheme.ThemeName;
+    private const string DefaultName = BoschTheme.ThemeName;
 
     private static readonly (string Name, string Description, Func<ITheme> Factory)[] Custom =
     [
@@ -25,7 +22,7 @@ namespace image_flip_bosch.CLI.TUI
       (MochaTheme.ThemeName, MochaTheme.ThemeDesc, () => new MochaTheme()),
     ];
 
-    public static void Register(ConsoleWindowSystem ws)
+    private static void Register(ConsoleWindowSystem ws)
     {
       ThemeRegistryStateService registry = ws.ThemeRegistryService;
       foreach ((string name, string description, Func<ITheme> factory) in Custom)
@@ -37,7 +34,7 @@ namespace image_flip_bosch.CLI.TUI
 
     public static IReadOnlyList<string> Names(ConsoleWindowSystem ws)
     {
-      List<string> ordered = Custom.Select(c => c.Name).ToList();
+      var ordered = Custom.Select(c => c.Name).ToList();
       ordered.AddRange(ws.ThemeRegistryService.GetAvailableThemeNames().Where(n => !ordered.Contains(n)));
       return ordered;
     }
@@ -50,8 +47,7 @@ namespace image_flip_bosch.CLI.TUI
       ITheme? theme = ws.ThemeRegistryService.GetTheme(target);
       if (theme is null)
       {
-        if (target == DefaultName) return false;
-        return Apply(ws, DefaultName);
+        return target != DefaultName && Apply(ws, DefaultName);
       }
 
       ws.ThemeStateService.SetTheme(theme);

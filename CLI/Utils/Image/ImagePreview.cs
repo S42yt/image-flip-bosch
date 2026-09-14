@@ -2,6 +2,7 @@ using image_flip_bosch.CLI.Sixel;
 using SharpConsoleUI;
 
 //mal gucken ob das so bleibt oder ob die andere version geiler ist mashallah :P
+//ist so geblieben hmdl
 
 namespace image_flip_bosch.CLI.Utils.Image
 {
@@ -75,6 +76,7 @@ namespace image_flip_bosch.CLI.Utils.Image
       try
       {
         data = await File.ReadAllBytesAsync(path, ct);
+        if (VideoToGif.IsVideo(data)) data = await VideoToGif.ConvertAsync(path, ct);
       }
       catch (Exception ex)
       {

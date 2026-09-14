@@ -23,7 +23,7 @@ namespace image_flip_bosch.CLI.Tests
 
       if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
       {
-        Console.Error.WriteLine("usage: image_flip_bosch giftest <file.gif>");
+        await Console.Error.WriteLineAsync("usage: image_flip_bosch giftest <file.gif>");
         return 2;
       }
 

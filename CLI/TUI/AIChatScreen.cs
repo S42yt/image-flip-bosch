@@ -11,6 +11,7 @@ using SharpConsoleUI.Helpers;
 using SharpConsoleUI.Layout;
 using System.Text;
 using System.Text.Json;
+using image_flip_bosch.CLI.TUI.Core;
 
 namespace image_flip_bosch.CLI.TUI
 {

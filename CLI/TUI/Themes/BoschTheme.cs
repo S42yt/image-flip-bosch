@@ -10,9 +10,9 @@ namespace image_flip_bosch.CLI.TUI.Themes
     public static readonly Color Red = Color.FromHex("#E20015");
     public static readonly Color Blue = Color.FromHex("#007BC0");
     public static readonly Color Green = Color.FromHex("#00884A");
-    public static readonly Color Yellow = Color.FromHex("#FCAF17");
-    public static readonly Color Anthracite = Color.FromHex("#141619");
-    public static readonly Color Light = Color.FromHex("#E6E8EB");
+    private static readonly Color Yellow = Color.FromHex("#FCAF17");
+    private static readonly Color Anthracite = Color.FromHex("#141619");
+    private static readonly Color Light = Color.FromHex("#E6E8EB");
 
     public BoschTheme() : base(ThemeName, "Bosch red on anthracite", new Palette
     {

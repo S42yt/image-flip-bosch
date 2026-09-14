@@ -2,7 +2,7 @@
 using SharpConsoleUI.Core;
 using SharpConsoleUI.Drivers;
 using SharpConsoleUI.Layout;
-using System.Drawing;
+using System.Buffers;
 using System.Text;
 using Size = SharpConsoleUI.Helpers.Size;
 
@@ -18,17 +18,38 @@ namespace image_flip_bosch.CLI.Sixel
       public SixelFrame? LastFrame;
       public int LastX = -1;
       public int LastY = -1;
+      public bool[]? DirtyStripes;
+    }
+
+    private readonly Lock _writeLock = new();
+    private readonly AutoResetEvent _writeSignal = new(false);
+    private sealed record Job(byte[] Buffer, int Length, Entry Entry, bool[]? Mask);
+
+    private Job? _mailbox;
+    private long _emittedFrames;
+    private long _emittedBytes;
+    private long _statsTicks = DateTime.UtcNow.Ticks;
+    private double _fps;
+    private double _mbps;
+
+    public (double Fps, double MBps) Stats
+    {
+      get
+      {
+        lock (_lock) return (_fps, _mbps);
+      }
     }
 
     private readonly IConsoleDriver _inner;
     private readonly Dictionary<int, Entry> _entries = new();
-    private readonly object _lock = new();
+    private readonly Lock _lock = new();
     private int _cursorX;
     private int _cursorY;
     private long _lastEmitTicks;
     private bool _throttleScheduled;
     private bool _forceAllSnapshot;
-    private static readonly TimeSpan MinEmitInterval = TimeSpan.FromMilliseconds(30);
+    private static readonly TimeSpan MinEmitInterval = TimeSpan.FromMilliseconds(8);
+    private readonly Stream _stdout = Console.OpenStandardOutput();
     private readonly bool _disabled = Environment.GetEnvironmentVariable("IFB_NO_SIXEL") is not null;
     private int[] _map = Array.Empty<int>();
     private int _w;
@@ -41,11 +62,12 @@ namespace image_flip_bosch.CLI.Sixel
     {
       _inner = inner;
       Capabilities = capabilities ?? SixelCapabilities.Default;
+      new Thread(WriterLoop) { IsBackground = true, Name = "sixel-writer" }.Start();
 
-      _inner.KeyPressed += (s, e) => KeyPressed?.Invoke(this, e);
-      _inner.Paste += (s, e) => Paste?.Invoke(this, e);
-      _inner.MouseEvent += (s, flags, point) => MouseEvent?.Invoke(this, flags, point);
-      _inner.ScreenResized += (s, size) =>
+      _inner.KeyPressed += (_, e) => KeyPressed?.Invoke(this, e);
+      _inner.Paste += (_, e) => Paste?.Invoke(this, e);
+      _inner.MouseEvent += (_, flags, point) => MouseEvent?.Invoke(this, flags, point);
+      _inner.ScreenResized += (_, size) =>
       {
         lock (_lock) { EnsureMap(size.Width, size.Height, reset: true); _forceAll = true; }
         ScreenResized?.Invoke(this, size);
@@ -99,8 +121,72 @@ namespace image_flip_bosch.CLI.Sixel
 
     public void Flush()
     {
-      _inner.Flush();
+      lock (_writeLock) _inner.Flush();
       EmitPending();
+    }
+
+    private void WriterLoop()
+    {
+      while (true)
+      {
+        _writeSignal.WaitOne();
+        Job? job;
+        lock (_lock)
+        {
+          job = _mailbox;
+          _mailbox = null;
+        }
+        if (job is null) continue;
+
+        try
+        {
+          lock (_writeLock)
+          {
+            Console.Out.Flush();
+            _stdout.Write(job.Buffer, 0, job.Length);
+            _stdout.Flush();
+          }
+        }
+        catch (IOException) { }
+        finally
+        {
+          ArrayPool<byte>.Shared.Return(job.Buffer);
+        }
+
+        lock (_lock)
+        {
+          _emittedFrames++;
+          _emittedBytes += job.Length;
+          long now = DateTime.UtcNow.Ticks;
+          double seconds = (now - _statsTicks) / (double)TimeSpan.TicksPerSecond;
+          if (seconds >= 1)
+          {
+            _fps = _emittedFrames / seconds;
+            _mbps = _emittedBytes / seconds / (1024 * 1024);
+            _emittedFrames = 0;
+            _emittedBytes = 0;
+            _statsTicks = now;
+          }
+        }
+      }
+    }
+
+    private void Post(byte[] buffer, int length, Entry entry, bool[]? mask)
+    {
+      Job? dropped;
+      lock (_lock)
+      {
+        dropped = _mailbox;
+        _mailbox = new Job(buffer, length, entry, mask);
+        if (dropped is not null)
+        {
+          if (dropped.Mask is null) dropped.Entry.Changed = true;
+          else if (dropped.Entry.DirtyStripes is { } d && d.Length == dropped.Mask.Length)
+            for (int s = 0; s < d.Length; s++) d[s] |= dropped.Mask[s];
+        }
+      }
+      if (dropped is not null) ArrayPool<byte>.Shared.Return(dropped.Buffer);
+      _writeSignal.Set();
     }
 
     public void Start()
@@ -127,7 +213,7 @@ namespace image_flip_bosch.CLI.Sixel
     public void Initialize(ConsoleWindowSystem windowSystem) => _inner.Initialize(windowSystem);
     public int GetDirtyCharacterCount() => _inner.GetDirtyCharacterCount();
 
-    public void SetNarrowCell(int x, int y, char character, SharpConsoleUI.Color fg, SharpConsoleUI.Color bg)
+    public void SetNarrowCell(int x, int y, char character, Color fg, Color bg)
     {
       lock (_lock)
       {
@@ -137,7 +223,7 @@ namespace image_flip_bosch.CLI.Sixel
       _inner.SetNarrowCell(x, y, character, fg, bg);
     }
 
-    public void FillCells(int x, int y, int width, char character, SharpConsoleUI.Color fg, SharpConsoleUI.Color bg)
+    public void FillCells(int x, int y, int width, char character, Color fg, Color bg)
     {
       int id = SixelImageControl.SentinelToId(fg, character);
       lock (_lock)
@@ -148,7 +234,7 @@ namespace image_flip_bosch.CLI.Sixel
       _inner.FillCells(x, y, width, character, fg, bg);
     }
 
-    public void WriteBufferRegion(int destX, int destY, CharacterBuffer source, int srcX, int srcY, int width, SharpConsoleUI.Color fallbackBg)
+    public void WriteBufferRegion(int destX, int destY, CharacterBuffer source, int srcX, int srcY, int width, Color fallbackBg)
     {
       if (_entries.Count > 0)
       {
@@ -194,14 +280,14 @@ namespace image_flip_bosch.CLI.Sixel
     private void EmitPending()
     {
       if (_disabled) return;
-      List<(Entry entry, int x, int y, int w, int h)> ready = new();
+      List<(Entry entry, int x, int y, int w, int h)> ready = [];
 
       lock (_lock)
       {
         _forceAllSnapshot = _forceAll;
         foreach (Entry entry in _entries.Values)
         {
-          if (!_forceAll && !entry.Changed && !entry.Control.HasPendingFrame) continue;
+          if (!_forceAll && entry is { Changed: false, Control.HasPendingFrame: false }) continue;
 
           int id = entry.Control.SentinelId;
           int minX = int.MaxValue, minY = int.MaxValue, maxX = -1, maxY = -1, count = 0;
@@ -231,7 +317,7 @@ namespace image_flip_bosch.CLI.Sixel
 
       if (ready.Count == 0) return;
 
-      TimeSpan sinceLast = TimeSpan.FromTicks(DateTime.UtcNow.Ticks - _lastEmitTicks);
+      var sinceLast = TimeSpan.FromTicks(DateTime.UtcNow.Ticks - _lastEmitTicks);
       if (sinceLast < MinEmitInterval)
       {
         lock (_lock) _forceAll = _forceAll || _forceAllSnapshot;
@@ -248,20 +334,59 @@ namespace image_flip_bosch.CLI.Sixel
         if (!regionRewritten && ReferenceEquals(frame, entry.LastFrame) && entry.LastX == x && entry.LastY == y)
           continue;
 
+        bool full = regionRewritten || entry.LastX != x || entry.LastY != y
+          || entry.LastFrame is null || entry.LastFrame.Stripes is null || frame.Stripes is null
+          || entry.LastFrame.Stripes.Length != frame.Stripes.Length;
+
         entry.LastFrame = frame;
         entry.LastX = x;
         entry.LastY = y;
-
-        StringBuilder sb = new(frame.Data.Length + 48);
-        sb.Append("\x1b[0m");
-        sb.Append("\x1b[").Append(y + 1).Append(';').Append(x + 1).Append('H');
-        sb.Append(frame.Data);
-        sb.Append("\x1b[0m");
-        sb.Append("\x1b[").Append(_cursorY + 1).Append(';').Append(_cursorX + 1).Append('H');
-
-        Console.Out.Write(sb.ToString());
-        Console.Out.Flush();
         entry.Changed = false;
+
+        byte[] tail = Encoding.ASCII.GetBytes($"\x1b[0m\x1b[{_cursorY + 1};{_cursorX + 1}H");
+        if (frame.Stripes is null)
+        {
+          byte[] head = Encoding.ASCII.GetBytes($"\x1b[0m\x1b[{y + 1};{x + 1}H");
+          int total = head.Length + frame.Data.Length + tail.Length;
+          byte[] buf = ArrayPool<byte>.Shared.Rent(total);
+          head.CopyTo(buf, 0);
+          frame.Data.CopyTo(buf, head.Length);
+          tail.CopyTo(buf, head.Length + frame.Data.Length);
+          entry.DirtyStripes = null;
+          Post(buf, total, entry, null);
+          continue;
+        }
+
+        bool[] dirty = entry.DirtyStripes is { } d && d.Length == frame.Stripes.Length ? d : new bool[frame.Stripes.Length];
+        entry.DirtyStripes = dirty;
+        int size = tail.Length;
+        for (int s = 0; s < frame.Stripes.Length; s++)
+        {
+          dirty[s] |= full || frame.Stripes[s].Changed;
+          if (dirty[s]) size += frame.Stripes[s].Data.Length + 24;
+        }
+
+        byte[] sbuf = ArrayPool<byte>.Shared.Rent(size);
+        bool[] mask = new bool[frame.Stripes.Length];
+        int n = 0;
+        for (int s = 0; s < frame.Stripes.Length; s++)
+        {
+          if (!dirty[s]) continue;
+          SixelStripe stripe = frame.Stripes[s];
+          n += Encoding.ASCII.GetBytes($"\x1b[0m\x1b[{y + 1 + stripe.Row};{x + 1}H", sbuf.AsSpan(n));
+          stripe.Data.CopyTo(sbuf, n);
+          n += stripe.Data.Length;
+          mask[s] = true;
+          dirty[s] = false;
+        }
+        if (n == 0)
+        {
+          ArrayPool<byte>.Shared.Return(sbuf);
+          continue;
+        }
+        tail.CopyTo(sbuf, n);
+        n += tail.Length;
+        Post(sbuf, n, entry, mask);
       }
 
       _lastEmitTicks = DateTime.UtcNow.Ticks;

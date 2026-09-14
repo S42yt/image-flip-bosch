@@ -8,21 +8,21 @@ namespace image_flip_bosch.ImgFlip.Requests
     public string Text { get; init; } = "";
 
     [JsonPropertyName("x")]
-    public int? X { get; set; }
+    public int? X { get; init; }
 
     [JsonPropertyName("y")]
-    public int? Y { get; set; }
+    public int? Y { get; init; }
 
     [JsonPropertyName("width")]
-    public int? Width { get; set; }
+    public int? Width { get; init; }
 
     [JsonPropertyName("height")]
-    public int? Height { get; set; }
+    public int? Height { get; init; }
 
     [JsonPropertyName("color")]
-    public string? Color { get; set; }
+    public string? Color { get; init; }
 
     [JsonPropertyName("outline_color")]
-    public string? OutlineColor { get; set; }
+    public string? OutlineColor { get; init; }
   }
 }

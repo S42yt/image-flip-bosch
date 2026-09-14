@@ -13,6 +13,7 @@
 *.userprefs
 *.sln.docstates
 
+
 ## Visual Studio Code
 .vscode/
 !.vscode/settings.json
@@ -21,6 +22,7 @@
 !.vscode/extensions.json
 
 ## .NET Core & Rider
+./idea
 *.DotSettings.user
 _ReSharper*/
 project.lock.json
@@ -42,3 +44,4 @@ Desktop.ini
 
 # Env Files
 .env
+*.db

@@ -5,29 +5,24 @@ using System.Text.Json;
 
 namespace image_flip_bosch.ImgFlip.Auth
 {
-  public sealed record ImgflipCredentials(string Username, string Password);
+  public sealed record ImgFlipCredentials(string Username, string Password);
 
-  public sealed class ImgflipCredentialStore
+  public sealed class ImgFlipCredentialStore(string? path = null)
   {
     private static readonly byte[] Entropy = Encoding.UTF8.GetBytes("image_flip_bosch.imgflip.v1");
 
     private sealed record Envelope(string Username, string Password, bool Protected);
 
-    public ImgflipCredentialStore(string? path = null)
-    {
-      Path = path ?? System.IO.Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData, Environment.SpecialFolderOption.Create),
-        "image_flip_bosch",
-        "imgflip.cred");
-    }
-
-    public string Path { get; }
+    public string Path { get; } = path ?? System.IO.Path.Combine(
+      Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData, Environment.SpecialFolderOption.Create),
+      "image_flip_bosch",
+      "imgflip.cred");
 
     public bool Exists => File.Exists(Path);
 
     public bool IsProtectedStorage => OperatingSystem.IsWindows();
 
-    public void Save(ImgflipCredentials credentials)
+    public void Save(ImgFlipCredentials credentials)
     {
       if (string.IsNullOrWhiteSpace(credentials.Username))
         throw new ArgumentException("Username is required.", nameof(credentials));
@@ -53,7 +48,7 @@ namespace image_flip_bosch.ImgFlip.Auth
       RestrictPermissions(Path);
     }
 
-    public ImgflipCredentials? Load()
+    public ImgFlipCredentials? Load()
     {
       if (!File.Exists(Path)) return null;
 
@@ -70,20 +65,18 @@ namespace image_flip_bosch.ImgFlip.Auth
       if (env is null) return null;
 
       string password = env.Password;
-      if (env.Protected)
+      if (!env.Protected) return new ImgFlipCredentials(env.Username, password);
+      if (!OperatingSystem.IsWindows()) return null;
+      try
       {
-        if (!OperatingSystem.IsWindows()) return null;
-        try
-        {
-          password = Unprotect(env.Password);
-        }
-        catch (CryptographicException)
-        {
-          return null;
-        }
+        password = Unprotect(env.Password);
+      }
+      catch (CryptographicException)
+      {
+        return null;
       }
 
-      return new ImgflipCredentials(env.Username, password);
+      return new ImgFlipCredentials(env.Username, password);
     }
 
     public bool Remove()

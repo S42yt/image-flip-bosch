@@ -30,7 +30,7 @@ namespace image_flip_bosch.CLI.TUI.Themes
   internal class CatppuccinTheme<TPalette> : PaletteTheme
         where TPalette : ICatppuccinPalette
   {
-    public CatppuccinTheme() : base(TPalette.ThemeName, TPalette.ThemeDesc, new Palette
+    private protected CatppuccinTheme() : base(TPalette.ThemeName, TPalette.ThemeDesc, new Palette
     {
       Primary = TPalette.Text,
       Secondary = TPalette.Subtext1,

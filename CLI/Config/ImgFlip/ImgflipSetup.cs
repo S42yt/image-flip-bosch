@@ -1,14 +1,13 @@
-using image_flip_bosch.ImgFlip;
 using System.Text;
 using image_flip_bosch.ImgFlip.Auth;
 
 namespace image_flip_bosch.CLI.Config.ImgFlip
 {
 
-  public sealed class ImgflipSetup(ConfigStore<AppConfig>? config = null, ImgflipCredentialStore? credentials = null)
+  public sealed class ImgflipSetup(ConfigStore<AppConfig>? config = null, ImgFlipCredentialStore? credentials = null)
   {
     private readonly ConfigStore<AppConfig> _config = config ?? new ConfigStore<AppConfig>();
-    private readonly ImgflipCredentialStore _credentials = credentials ?? new ImgflipCredentialStore();
+    private readonly ImgFlipCredentialStore _credentials = credentials ?? new ImgFlipCredentialStore();
 
     public bool IsConfigured => _config.Load().ImgFlip.HasUsername && _credentials.Exists;
 
@@ -23,7 +22,7 @@ namespace image_flip_bosch.CLI.Config.ImgFlip
       if (string.IsNullOrEmpty(password))
         throw new ArgumentException("Password is required.", nameof(password));
 
-      _credentials.Save(new ImgflipCredentials(username.Trim(), password));
+      _credentials.Save(new ImgFlipCredentials(username.Trim(), password));
       _config.Update(c => c.ImgFlip.Username = username.Trim());
     }
 
@@ -34,9 +33,9 @@ namespace image_flip_bosch.CLI.Config.ImgFlip
       return removed;
     }
 
-    public ImgflipCredentials? GetCredentials()
+    public ImgFlipCredentials? GetCredentials()
     {
-      ImgflipCredentials? stored = _credentials.Load();
+      ImgFlipCredentials? stored = _credentials.Load();
       if (stored is null) return null;
 
       string? configured = _config.Load().ImgFlip.Username;
@@ -45,7 +44,7 @@ namespace image_flip_bosch.CLI.Config.ImgFlip
         : stored with { Username = configured };
     }
 
-    public ImgflipCredentials RequireCredentials() =>
+    public ImgFlipCredentials RequireCredentials() =>
       GetCredentials() ?? throw new InvalidOperationException("Imgflip credentials are not configured. Run setup first.");
 
     public ImgFlipConfig Options => _config.Load().ImgFlip;
