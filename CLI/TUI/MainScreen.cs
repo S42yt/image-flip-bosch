@@ -29,6 +29,7 @@ namespace image_flip_bosch.CLI.TUI
     private readonly ConfigStore<AppConfig> _configStore;
     private readonly ImgflipSetup _setup;
     private readonly AppOptions _options;
+    private MemeFeedClient _feed;
 
     private readonly MarkupControl _header;
     private readonly PromptControl _filter;
@@ -67,6 +68,7 @@ namespace image_flip_bosch.CLI.TUI
       _configStore = configStore;
       _setup = setup;
       _options = options;
+      _feed = new MemeFeedClient(configStore.Load().Feed.BaseUrl);
       _chrome = NanoChrome.From(ws.Theme);
 
       _header = Controls.Markup(HeaderText(null))
@@ -207,7 +209,7 @@ namespace image_flip_bosch.CLI.TUI
 
     private List<string> ShortcutRows() =>
     [
-      _chrome.Key("F5", "Caption") + _chrome.Key("F6", "Copy URL") + _chrome.Key("F7", "Save") + _chrome.Key("F8", "Settings") + (GifsAvailable ? _chrome.Key("F2", GifMode ? "Images" : "GIFs") : string.Empty),
+      _chrome.Key("F5", "Caption") + _chrome.Key("F6", "Copy URL") + _chrome.Key("F7", "Save") + _chrome.Key("F8", "Settings") + _chrome.Key("F10", "Feed") + _chrome.Key("F12", "Upload") + (GifsAvailable ? _chrome.Key("F2", GifMode ? "Images" : "GIFs") : string.Empty),
       _chrome.Key("F9", "Reload") + _chrome.Key("F3", "Theme") + _chrome.Key("F1", "Help") + _chrome.Key("F4", "Exit"),
     ];
 
@@ -238,6 +240,8 @@ namespace image_flip_bosch.CLI.TUI
         case ConsoleKey.F7: _ = SaveCurrentAsync(); e.Handled = true; break;
         case ConsoleKey.F8: OpenSettings(); e.Handled = true; break;
         case ConsoleKey.F9: _ = LoadTemplatesAsync(); e.Handled = true; break;
+        case ConsoleKey.F10: OpenDoomScroll(); e.Handled = true; break;
+        case ConsoleKey.F12: _ = UploadResultAsync(); e.Handled = true; break;
         case ConsoleKey.Escape: _window.FocusControl(_filter); e.Handled = true; break;
         //case ConsoleKey.C when ctrl: CopyResultUrl(); e.Handled = true; break;
         //case ConsoleKey.S when ctrl: _ = SaveCurrentAsync(); e.Handled = true; break;
@@ -249,8 +253,8 @@ namespace image_flip_bosch.CLI.TUI
 
     private void ShowHelp() =>
       Say(GifsAvailable
-        ? "Type to filter, Enter or F5 to caption, F2 switches between image and GIF templates, F7 saves, F6 copies the URL"
-        : "Type to filter, Enter or F5 to caption, F7 saves, F6 copies the URL, F3 switches theme");
+        ? "Type to filter, Enter or F5 to caption, F2 switches image/GIF templates, F7 saves, F6 copies the URL, F12 uploads to the feed, F10 opens the feed"
+        : "Type to filter, Enter or F5 to caption, F7 saves, F6 copies the URL, F12 uploads to the feed, F10 opens the feed");
 
     private void ToggleMode()
     {
@@ -278,9 +282,39 @@ namespace image_flip_bosch.CLI.TUI
       new SettingsScreen(_ws, _configStore, _setup, _window, () =>
       {
         Say(_setup.IsConfigured ? $"Logged in as {_setup.Username}" : "No Imgflip login");
+        string feedUrl = _configStore.Load().Feed.BaseUrl;
+        if (feedUrl != _feed.BaseUrl) _feed = new MemeFeedClient(feedUrl);
         _imgflip.ResetPremium();
         _ = RefreshPremiumAsync();
       }).Show();
+
+    private void OpenDoomScroll() =>
+      new DoomScrollScreen(_ws, _cache, _feed, _setup.IsConfigured ? _setup.Username : null).Show();
+
+    private async Task UploadResultAsync()
+    {
+      if (_resultUrl is null) { Say("Create a meme first", NotificationSeverity.Warning); return; }
+      if (!_setup.IsConfigured) { Say("Login (F8) to upload to the feed", NotificationSeverity.Warning); return; }
+      if (_busy) { Say("Busy", NotificationSeverity.Warning); return; }
+
+      _busy = true;
+      Say("Uploading to feed...");
+      try
+      {
+        string path = await _cache.GetAsync(_resultUrl);
+        byte[] data = await File.ReadAllBytesAsync(path);
+        (long id, bool duplicate) = await _feed.UploadAsync(_setup.Username!, data, MemeFeedClient.ContentTypeFor(path));
+        Say(duplicate ? $"Already in the feed as #{id}" : $"Uploaded to feed as #{id}", duplicate ? NotificationSeverity.Warning : NotificationSeverity.Success);
+      }
+      catch (Exception ex)
+      {
+        Say($"Upload failed: {ex.Message}", NotificationSeverity.Danger);
+      }
+      finally
+      {
+        _busy = false;
+      }
+    }
 
     private void Say(string text, NotificationSeverity? severity = null)
     {

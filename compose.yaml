@@ -1,0 +1,11 @@
+services:
+  backend:
+    build: .
+    ports:
+      - "5080:5080"
+    volumes:
+      - memes:/data
+    restart: unless-stopped
+
+volumes:
+  memes:

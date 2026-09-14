@@ -7,6 +7,22 @@ namespace image_flip_bosch.CLI.Config
     public CacheConfig Cache { get; set; } = new();
 
     public ImgFlipConfig ImgFlip { get; set; } = new();
+
+    public FeedConfig Feed { get; set; } = new();
+
+    public string? Proxy { get; set; }
+
+    public void ApplyProxy()
+    {
+      if (string.IsNullOrWhiteSpace(Proxy)) return;
+      string url = Proxy.Contains("://") ? Proxy : "http://" + Proxy;
+      System.Net.Http.HttpClient.DefaultProxy = new System.Net.WebProxy(url) { BypassProxyOnLocal = true };
+    }
+  }
+
+  public sealed class FeedConfig
+  {
+    public string BaseUrl { get; set; } = "http://localhost:5080";
   }
 
   public sealed class CacheConfig

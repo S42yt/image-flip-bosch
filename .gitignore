@@ -44,3 +44,4 @@ Desktop.ini
 
 # Env Files
 .env
+*.db

@@ -1,0 +1,8 @@
+bin/
+obj/
+.git/
+.idea/
+.vs/
+Assets/
+*.db
+nuget.config

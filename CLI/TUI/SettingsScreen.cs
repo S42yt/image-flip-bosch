@@ -25,6 +25,8 @@ namespace image_flip_bosch.CLI.TUI
     private readonly CheckboxControl _includeNsfw;
     private readonly CheckboxControl _customBoxes;
     private readonly DropdownControl _theme;
+    private readonly PromptControl _feedUrl;
+    private readonly PromptControl _proxy;
     private readonly MarkupControl _account;
 
     public SettingsScreen(ConsoleWindowSystem ws, ConfigStore<AppConfig> configStore, ImgflipSetup setup, Window? parent = null, Action? onSaved = null)
@@ -34,7 +36,22 @@ namespace image_flip_bosch.CLI.TUI
       _setup = setup;
       _onSaved = onSaved;
 
-      ImgFlipConfig current = configStore.Load().ImgFlip;
+      AppConfig config = configStore.Load();
+      ImgFlipConfig current = config.ImgFlip;
+
+      _feedUrl = Controls.Prompt(" Feed URL: ")
+        .WithPlaceholder("http://host:5080")
+        .UnfocusOnEnter(false)
+        .OnEntered((_, _) => Save())
+        .Build();
+      _feedUrl.Input = config.Feed.BaseUrl;
+
+      _proxy = Controls.Prompt(" Proxy: ")
+        .WithPlaceholder("http://localhost:3128, optional")
+        .UnfocusOnEnter(false)
+        .OnEntered((_, _) => Save())
+        .Build();
+      _proxy.Input = config.Proxy ?? string.Empty;
 
       _username = Controls.Prompt(" Username: ")
         .WithPlaceholder("imgflip account, optional")
@@ -99,6 +116,12 @@ namespace image_flip_bosch.CLI.TUI
         _includeNsfw,
         _customBoxes,
         Controls.Markup(string.Empty).Build(),
+        Controls.Markup(Chrome.SectionText(" Feed")).Build(),
+        _feedUrl,
+        Controls.Markup(string.Empty).Build(),
+        Controls.Markup(Chrome.SectionText(" Network")).Build(),
+        _proxy,
+        Controls.Markup(string.Empty).Build(),
         Controls.Markup(Chrome.SectionText(" Appearance")).Build(),
         _theme,
       ];
@@ -159,8 +182,26 @@ namespace image_flip_bosch.CLI.TUI
         maxFont = parsed;
       }
 
+      string feedUrl = _feedUrl.Input.Trim();
+      if (!Uri.TryCreate(feedUrl, UriKind.Absolute, out Uri? feedUri) || feedUri.Scheme is not ("http" or "https"))
+      {
+        Say("Feed URL must start with http:// or https://", NotificationSeverity.Danger);
+        return;
+      }
+
+      string proxy = _proxy.Input.Trim();
+      string proxyUrl = proxy.Length == 0 ? string.Empty : proxy.Contains("://") ? proxy : "http://" + proxy;
+      if (proxyUrl.Length > 0 && !Uri.TryCreate(proxyUrl, UriKind.Absolute, out _))
+      {
+        Say("Proxy must look like host:port or http://host:port", NotificationSeverity.Danger);
+        return;
+      }
+      bool proxyChanged = (proxy.Length == 0 ? null : proxy) != _configStore.Load().Proxy;
+
       _configStore.Update(c =>
       {
+        c.Proxy = proxy.Length == 0 ? null : proxy;
+        c.Feed.BaseUrl = feedUrl;
         c.ImgFlip.MaxFontSize = maxFont;
         c.ImgFlip.NoWatermark = _noWatermark.Checked;
         c.ImgFlip.IncludeNsfw = _includeNsfw.Checked;
@@ -179,7 +220,7 @@ namespace image_flip_bosch.CLI.TUI
       }
 
       _account.SetContent([AccountLine()]);
-      Say("Settings saved", NotificationSeverity.Success);
+      Say(proxyChanged ? "Settings saved, restart to apply the proxy" : "Settings saved", NotificationSeverity.Success);
       _onSaved?.Invoke();
     }
 

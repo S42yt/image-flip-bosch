@@ -90,3 +90,4 @@ Debug: -DShowDebugScreen
 Gif Test: giftest
 Login: login
 Logout: logout
+Serve Backend: serve
