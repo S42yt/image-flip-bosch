@@ -18,6 +18,26 @@ namespace image_flip_bosch.CLI.Sixel
       public SixelFrame? LastFrame;
       public int LastX = -1;
       public int LastY = -1;
+      public bool[]? DirtyStripes;
+    }
+
+    private readonly Lock _writeLock = new();
+    private readonly AutoResetEvent _writeSignal = new(false);
+    private sealed record Job(byte[] Buffer, int Length, Entry Entry, bool[]? Mask);
+
+    private Job? _mailbox;
+    private long _emittedFrames;
+    private long _emittedBytes;
+    private long _statsTicks = DateTime.UtcNow.Ticks;
+    private double _fps;
+    private double _mbps;
+
+    public (double Fps, double MBps) Stats
+    {
+      get
+      {
+        lock (_lock) return (_fps, _mbps);
+      }
     }
 
     private readonly IConsoleDriver _inner;
@@ -42,6 +62,7 @@ namespace image_flip_bosch.CLI.Sixel
     {
       _inner = inner;
       Capabilities = capabilities ?? SixelCapabilities.Default;
+      new Thread(WriterLoop) { IsBackground = true, Name = "sixel-writer" }.Start();
 
       _inner.KeyPressed += (_, e) => KeyPressed?.Invoke(this, e);
       _inner.Paste += (_, e) => Paste?.Invoke(this, e);
@@ -100,8 +121,72 @@ namespace image_flip_bosch.CLI.Sixel
 
     public void Flush()
     {
-      _inner.Flush();
+      lock (_writeLock) _inner.Flush();
       EmitPending();
+    }
+
+    private void WriterLoop()
+    {
+      while (true)
+      {
+        _writeSignal.WaitOne();
+        Job? job;
+        lock (_lock)
+        {
+          job = _mailbox;
+          _mailbox = null;
+        }
+        if (job is null) continue;
+
+        try
+        {
+          lock (_writeLock)
+          {
+            Console.Out.Flush();
+            _stdout.Write(job.Buffer, 0, job.Length);
+            _stdout.Flush();
+          }
+        }
+        catch (IOException) { }
+        finally
+        {
+          ArrayPool<byte>.Shared.Return(job.Buffer);
+        }
+
+        lock (_lock)
+        {
+          _emittedFrames++;
+          _emittedBytes += job.Length;
+          long now = DateTime.UtcNow.Ticks;
+          double seconds = (now - _statsTicks) / (double)TimeSpan.TicksPerSecond;
+          if (seconds >= 1)
+          {
+            _fps = _emittedFrames / seconds;
+            _mbps = _emittedBytes / seconds / (1024 * 1024);
+            _emittedFrames = 0;
+            _emittedBytes = 0;
+            _statsTicks = now;
+          }
+        }
+      }
+    }
+
+    private void Post(byte[] buffer, int length, Entry entry, bool[]? mask)
+    {
+      Job? dropped;
+      lock (_lock)
+      {
+        dropped = _mailbox;
+        _mailbox = new Job(buffer, length, entry, mask);
+        if (dropped is not null)
+        {
+          if (dropped.Mask is null) dropped.Entry.Changed = true;
+          else if (dropped.Entry.DirtyStripes is { } d && d.Length == dropped.Mask.Length)
+            for (int s = 0; s < d.Length; s++) d[s] |= dropped.Mask[s];
+        }
+      }
+      if (dropped is not null) ArrayPool<byte>.Shared.Return(dropped.Buffer);
+      _writeSignal.Set();
     }
 
     public void Start()
@@ -249,23 +334,59 @@ namespace image_flip_bosch.CLI.Sixel
         if (!regionRewritten && ReferenceEquals(frame, entry.LastFrame) && entry.LastX == x && entry.LastY == y)
           continue;
 
+        bool full = regionRewritten || entry.LastX != x || entry.LastY != y
+          || entry.LastFrame is null || entry.LastFrame.Stripes is null || frame.Stripes is null
+          || entry.LastFrame.Stripes.Length != frame.Stripes.Length;
+
         entry.LastFrame = frame;
         entry.LastX = x;
         entry.LastY = y;
-
-        byte[] head = Encoding.ASCII.GetBytes($"\x1b[0m\x1b[{y + 1};{x + 1}H");
-        byte[] tail = Encoding.ASCII.GetBytes($"\x1b[0m\x1b[{_cursorY + 1};{_cursorX + 1}H");
-        int total = head.Length + frame.Data.Length + tail.Length;
-        byte[] buf = ArrayPool<byte>.Shared.Rent(total);
-        head.CopyTo(buf, 0);
-        frame.Data.CopyTo(buf, head.Length);
-        tail.CopyTo(buf, head.Length + frame.Data.Length);
-
-        Console.Out.Flush();
-        _stdout.Write(buf, 0, total);
-        _stdout.Flush();
-        ArrayPool<byte>.Shared.Return(buf);
         entry.Changed = false;
+
+        byte[] tail = Encoding.ASCII.GetBytes($"\x1b[0m\x1b[{_cursorY + 1};{_cursorX + 1}H");
+        if (frame.Stripes is null)
+        {
+          byte[] head = Encoding.ASCII.GetBytes($"\x1b[0m\x1b[{y + 1};{x + 1}H");
+          int total = head.Length + frame.Data.Length + tail.Length;
+          byte[] buf = ArrayPool<byte>.Shared.Rent(total);
+          head.CopyTo(buf, 0);
+          frame.Data.CopyTo(buf, head.Length);
+          tail.CopyTo(buf, head.Length + frame.Data.Length);
+          entry.DirtyStripes = null;
+          Post(buf, total, entry, null);
+          continue;
+        }
+
+        bool[] dirty = entry.DirtyStripes is { } d && d.Length == frame.Stripes.Length ? d : new bool[frame.Stripes.Length];
+        entry.DirtyStripes = dirty;
+        int size = tail.Length;
+        for (int s = 0; s < frame.Stripes.Length; s++)
+        {
+          dirty[s] |= full || frame.Stripes[s].Changed;
+          if (dirty[s]) size += frame.Stripes[s].Data.Length + 24;
+        }
+
+        byte[] sbuf = ArrayPool<byte>.Shared.Rent(size);
+        bool[] mask = new bool[frame.Stripes.Length];
+        int n = 0;
+        for (int s = 0; s < frame.Stripes.Length; s++)
+        {
+          if (!dirty[s]) continue;
+          SixelStripe stripe = frame.Stripes[s];
+          n += Encoding.ASCII.GetBytes($"\x1b[0m\x1b[{y + 1 + stripe.Row};{x + 1}H", sbuf.AsSpan(n));
+          stripe.Data.CopyTo(sbuf, n);
+          n += stripe.Data.Length;
+          mask[s] = true;
+          dirty[s] = false;
+        }
+        if (n == 0)
+        {
+          ArrayPool<byte>.Shared.Return(sbuf);
+          continue;
+        }
+        tail.CopyTo(sbuf, n);
+        n += tail.Length;
+        Post(sbuf, n, entry, mask);
       }
 
       _lastEmitTicks = DateTime.UtcNow.Ticks;

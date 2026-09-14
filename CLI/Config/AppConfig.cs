@@ -12,6 +12,8 @@ namespace image_flip_bosch.CLI.Config
 
     public string? Proxy { get; set; }
 
+    public StreamConfig Stream { get; } = new();
+
     private static readonly System.Net.IWebProxy SystemProxy = HttpClient.DefaultProxy;
 
     private static readonly string[] PrivateHosts =
@@ -25,14 +27,25 @@ namespace image_flip_bosch.CLI.Config
 
     public void ApplyProxy()
     {
+      Sixel.SixelVideoStream.MaxHeight = Stream.MaxHeight;
+      Sixel.SixelVideoStream.AllowInsecureTls = Stream.AllowInsecureTls;
       if (string.IsNullOrWhiteSpace(Proxy))
       {
         HttpClient.DefaultProxy = SystemProxy;
+        Sixel.SixelVideoStream.Proxy = null;
         return;
       }
       string url = Proxy.Contains("://") ? Proxy : "http://" + Proxy;
       HttpClient.DefaultProxy = new System.Net.WebProxy(url, BypassOnLocal: true, BypassList: PrivateHosts);
+      Sixel.SixelVideoStream.Proxy = url;
     }
+  }
+
+  public sealed class StreamConfig
+  {
+    public int MaxHeight { get; set; } = 1080;
+
+    public bool AllowInsecureTls { get; set; } = true;
   }
 
   public sealed class FeedConfig

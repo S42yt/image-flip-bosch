@@ -8,7 +8,9 @@ using SixLabors.ImageSharp.Processing.Processors.Quantization;
 namespace image_flip_bosch.CLI.Sixel
 {
 
-  public sealed record SixelFrame(byte[] Data, int Cols, int Rows, int PixelWidth, int PixelHeight);
+  public sealed record SixelStripe(int Row, byte[] Data, bool Changed);
+
+  public sealed record SixelFrame(byte[] Data, int Cols, int Rows, int PixelWidth, int PixelHeight, SixelStripe[]? Stripes = null);
 
   public sealed record SixelAnimationFrame(SixelFrame Frame, int DelayMs);
 
@@ -38,6 +40,26 @@ namespace image_flip_bosch.CLI.Sixel
         }
         indices[i] = (byte)idx;
       }
+    }
+
+    public double MeanError(ReadOnlySpan<byte> rgba, int stride)
+    {
+      long sum = 0;
+      int n = 0;
+      for (int p = 0; p + 3 < rgba.Length; p += 4 * stride)
+      {
+        int key = ((rgba[p] >> 2) << 12) | ((rgba[p + 1] >> 2) << 6) | (rgba[p + 2] >> 2);
+        short idx = _lut[key];
+        if (idx < 0)
+        {
+          idx = Nearest(rgba[p], rgba[p + 1], rgba[p + 2]);
+          _lut[key] = idx;
+        }
+        Rgba32 c = _palette[idx];
+        sum += Math.Abs(c.R - rgba[p]) + Math.Abs(c.G - rgba[p + 1]) + Math.Abs(c.B - rgba[p + 2]);
+        n++;
+      }
+      return n == 0 ? 0 : sum / (3.0 * n);
     }
 
     private short Nearest(int r, int g, int b)
@@ -249,15 +271,26 @@ namespace image_flip_bosch.CLI.Sixel
       return new PaletteLut(indexed.Palette.Span);
     }
 
-    private static byte[] Encode(byte[] indices, int w, int h, ReadOnlySpan<Rgba32> palette)
+    private static byte[] Encode(byte[] indices, int w, int h, ReadOnlySpan<Rgba32> palette) =>
+      Encode(indices, w, 0, h, palette, onlyUsedColors: false);
+
+    internal static byte[] Encode(byte[] indices, int w, int yFrom, int yTo, ReadOnlySpan<Rgba32> palette, bool onlyUsedColors)
     {
       int colors = palette.Length;
+      int h = yTo - yFrom;
       ByteBuffer o = new(w * h / 3 + 4096);
       o.Ascii("\eP0;0;0q\"1;1;");
       o.Int(w).Byte((byte)';').Int(h);
 
+      bool[]? define = null;
+      if (onlyUsedColors)
+      {
+        define = new bool[colors];
+        for (int p = yFrom * w; p < yTo * w; p++) define[indices[p]] = true;
+      }
       for (int i = 0; i < colors; i++)
       {
+        if (define is not null && !define[i]) continue;
         Rgba32 c = palette[i];
         o.Byte((byte)'#').Int(i).Ascii(";2;").Int(c.R * 100 / 255).Byte((byte)';').Int(c.G * 100 / 255).Byte((byte)';').Int(c.B * 100 / 255);
       }
@@ -273,9 +306,9 @@ namespace image_flip_bosch.CLI.Sixel
       int[] sX = new int[cap];
       byte[] sMask = new byte[cap];
 
-      for (int band = 0; band < h; band += 6)
+      for (int band = yFrom; band < yTo; band += 6)
       {
-        int bandRows = Math.Min(6, h - band);
+        int bandRows = Math.Min(6, yTo - band);
         Array.Fill(lastX, -1);
         Array.Clear(count);
         int n = 0;

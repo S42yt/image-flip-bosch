@@ -13,7 +13,27 @@ namespace image_flip_bosch.CLI.Sixel
     private SixelFrame? _last;
     private bool _paused;
 
+    private AudioOutput? _audio;
+    private bool _muted;
+
     public int MaxColors { get; init; } = 256;
+
+    public bool Audio { get; init; } = true;
+
+    public bool AudioAvailable => Audio && AudioOutput.Supported;
+
+    public bool Muted
+    {
+      get => _muted;
+      set
+      {
+        _muted = value;
+        lock (_streamLock)
+        {
+          if (_audio is not null) _audio.Muted = value;
+        }
+      }
+    }
 
     public bool IsPlaying => _path is not null && !_paused;
 
@@ -102,8 +122,14 @@ namespace image_flip_bosch.CLI.Sixel
       ConsoleWindowSystem? ws = Container?.GetConsoleWindowSystem;
       _ = Task.Run(async () =>
       {
+        AudioOutput? audio = null;
         try
         {
+          if (AudioAvailable)
+          {
+            audio = new AudioOutput { Muted = _muted };
+            lock (_streamLock) _audio = audio;
+          }
           await SixelVideoStream.PlayAsync(
             path, cols, rows, cellWidth, cellHeight, fps, Background, start,
             frame =>
@@ -125,7 +151,8 @@ namespace image_flip_bosch.CLI.Sixel
               ws?.InvokeAsync(() => Progress?.Invoke(this, p));
             },
             MaxColors,
-            cts.Token);
+            cts.Token,
+            audio);
         }
         catch (OperationCanceledException)
         {
@@ -133,6 +160,14 @@ namespace image_flip_bosch.CLI.Sixel
         catch (Exception ex)
         {
           ws?.InvokeAsync(() => PlaybackFailed?.Invoke(this, ex.Message));
+        }
+        finally
+        {
+          lock (_streamLock)
+          {
+            if (ReferenceEquals(_audio, audio)) _audio = null;
+          }
+          audio?.Dispose();
         }
       }, cts.Token);
 

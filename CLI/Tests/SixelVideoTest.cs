@@ -16,20 +16,20 @@ namespace image_flip_bosch.CLI.Tests
       Console.OutputEncoding = Encoding.UTF8;
       Console.InputEncoding = Encoding.UTF8;
 
-      if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+      if (string.IsNullOrWhiteSpace(path) || (!SixelVideoStream.IsUrl(path) && !File.Exists(path)))
       {
         await Console.Error.WriteLineAsync("usage: image_flip_bosch vidtest <file.mp4> [fps] [colors]");
+        await Console.Error.WriteLineAsync("       image_flip_bosch stream <youtube/twitch url> [fps] [colors]");
         return 2;
       }
 
       SixelCapabilities caps = SixelTerminal.Probe();
       Console.WriteLine($"sixel supported={caps.Supported} cell={caps.CellWidth}x{caps.CellHeight}");
-      Console.WriteLine("Esc or F4 quits, Space pauses, R restarts, +/- changes fps.");
+      Console.WriteLine("Esc or F4 quits, Space pauses, R restarts, +/- changes fps, M mutes.");
       await Task.Delay(800);
 
-      ConsoleWindowSystem ws = new(
-        new SixelDriver(new NetConsoleDriver(RenderMode.Buffer), caps),
-        options: new ConsoleWindowSystemOptions(TargetFPS: 60, DirtyTrackingMode: DirtyTrackingMode.Cell));
+      SixelDriver driver = new(new NetConsoleDriver(RenderMode.Buffer), caps);
+      ConsoleWindowSystem ws = new(driver, options: new ConsoleWindowSystemOptions(TargetFPS: 60, DirtyTrackingMode: DirtyTrackingMode.Cell));
 
       MarkupControl status = Controls.Markup("starting ffmpeg...").StickyBottom().Build();
       SixelVideoControl video = new()
@@ -39,9 +39,13 @@ namespace image_flip_bosch.CLI.Tests
         VerticalAlignment = VerticalAlignment.Fill,
       };
 
-      string name = Path.GetFileName(path);
-      video.Progress += (_, p) => status.SetContent([
-        $"{name}  {p.Elapsed:mm\\:ss}  frame {p.Frame}  dropped {p.Dropped}  {p.Fps:F1} fps shown / {fps} target  {colors} colors{(p.Finished ? "  [end]" : string.Empty)}"]);
+      string name = SixelVideoStream.IsUrl(path) ? new Uri(path).Host : Path.GetFileName(path);
+      video.Progress += (_, p) =>
+      {
+        (double termFps, double mbps) = driver.Stats;
+        status.SetContent([
+          $"{name}  {p.Elapsed:mm\\:ss}  decode {p.Fps:F1}/{fps} fps  terminal {termFps:F1} fps {mbps:F1} MB/s  dropped {p.Dropped}  {colors} colors  {(video.AudioAvailable ? (video.Muted ? "muted" : "sound") : "no audio on this OS")}{(p.Finished ? "  [end]" : string.Empty)}"]);
+      };
       video.PlaybackFailed += (_, msg) => status.SetContent([$"[red]{msg}[/]"]);
 
       Window win = new WindowBuilder(ws)
@@ -70,6 +74,11 @@ namespace image_flip_bosch.CLI.Tests
             break;
           case ConsoleKey.R:
             video.Play(path, fps);
+            e.Handled = true;
+            break;
+          case ConsoleKey.M:
+            video.Muted = !video.Muted;
+            status.SetContent([video.Muted ? "muted" : "sound on"]);
             e.Handled = true;
             break;
           case ConsoleKey.Add or ConsoleKey.OemPlus:

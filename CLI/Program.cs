@@ -35,8 +35,8 @@ namespace image_flip_bosch.CLI
       {
         case > 0 when args[0] == "serve":
           return await BackendHost.RunAsync(args[1..]);
-        case > 0 when args[0] == "vidtest":
-          return await Tests.SixelVideoTest.RunAsync(args.Length > 1 ? args[1] : null, args.Length > 2 && int.TryParse(args[2], out int fps) ? fps : 24, args.Length > 3 && int.TryParse(args[3], out int colors) ? colors : 256);
+        case > 0 when args[0] is "vidtest" or "stream":
+          return await Tests.SixelVideoTest.RunAsync(args.Length > 1 ? args[1] : null, args.Length > 2 && int.TryParse(args[2], out int fps) ? fps : 24, args.Length > 3 && int.TryParse(args[3], out int colors) ? colors : 128);
         case > 0 when args[0] == "giftest":
           return await Tests.SixelGifTest.RunAsync(args.Length > 1 ? args[1] : null);
         case > 0 when args[0] == "logout":
