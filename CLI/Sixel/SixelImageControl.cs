@@ -38,7 +38,7 @@ namespace image_flip_bosch.CLI.Sixel
 
     private bool Animate { get; set; } = true;
 
-    public int AnimationMaxColors { get; init; } = 128;
+    public int AnimationMaxColors { get; init; } = 256;
 
     private int AnimationMaxFrames { get; set; } = 200;
 
@@ -104,7 +104,7 @@ namespace image_flip_bosch.CLI.Sixel
       int x1 = bounds.X + bounds.Width - Margin.Right;
       int y1 = bounds.Y + bounds.Height - Margin.Bottom;
 
-      Color fg = ImageData is null ? defaultForeground : Sentinel;
+      Color fg = HasContent ? Sentinel : defaultForeground;
       _background = new Rgba32(defaultBackground.R, defaultBackground.G, defaultBackground.B);
 
       for (int y = Math.Max(y0, clipRect.Y); y < Math.Min(y1, clipRect.Y + clipRect.Height); y++)
@@ -112,7 +112,28 @@ namespace image_flip_bosch.CLI.Sixel
           buffer.SetNarrowCell(x, y, ' ', fg, defaultBackground);
     }
 
-    internal SixelFrame? GetFrame(int cols, int rows, int cellWidth, int cellHeight)
+    protected virtual bool HasContent => ImageData is not null;
+
+    protected Rgba32 Background => _background;
+
+    protected (int cols, int rows, int cw, int ch, int version) KeyFor(int cols, int rows, int cellWidth, int cellHeight)
+    {
+      lock (_lock) return (cols, rows, cellWidth, cellHeight, _version);
+    }
+
+    protected void Publish(SixelFrame frame, (int cols, int rows, int cw, int ch, int version) key)
+    {
+      lock (_lock)
+      {
+        _frame = frame;
+        _frameKey = key;
+        HasPendingFrame = true;
+      }
+      _driver?.RequestEmit(this);
+      Container?.GetConsoleWindowSystem?.InvokeAsync(() => Invalidate(Invalidation.Repaint));
+    }
+
+    internal virtual SixelFrame? GetFrame(int cols, int rows, int cellWidth, int cellHeight)
     {
       byte[]? data;
       string? cacheId;
@@ -217,6 +238,23 @@ namespace image_flip_bosch.CLI.Sixel
 
       _ = Task.Run(async () =>
       {
+        try
+        {
+          SixelFrame first = SixelEncoder.RenderToCells(data, key.cols, key.rows, key.cw, key.ch, background, maxColors, dither: false, firstFrameOnly: true);
+          lock (_lock)
+          {
+            if (_encodingKey != key || cts.IsCancellationRequested) return;
+            _frame = first;
+            _frameKey = key;
+            HasPendingFrame = true;
+          }
+          _driver?.RequestEmit(this);
+          ws?.InvokeAsync(() => Invalidate(Invalidation.Repaint));
+        }
+        catch (Exception)
+        {
+        }
+
         List<SixelAnimationFrame> frames;
         try
         {

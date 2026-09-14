@@ -60,6 +60,8 @@ namespace image_flip_bosch.CLI.Utils
       ".gif" => "image/gif",
       ".webp" => "image/webp",
       ".bmp" => "image/bmp",
+      ".mp4" => "video/mp4",
+      ".webm" => "video/webm",
       _ => "image/png",
     };
 
@@ -75,6 +77,8 @@ namespace image_flip_bosch.CLI.Utils
       "image/gif" => ".gif",
       "image/webp" => ".webp",
       "image/bmp" => ".bmp",
+      "video/mp4" => ".mp4",
+      "video/webm" => ".webm",
       _ => ".png",
     };
   }

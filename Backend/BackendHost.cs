@@ -6,6 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 using System.Net;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
+using JetBrains.Annotations;
 
 namespace image_flip_bosch.Backend
 {
@@ -28,7 +29,7 @@ namespace image_flip_bosch.Backend
       {
         await SchemaUpgrade.RunAsync(scope.ServiceProvider.GetRequiredService<MemeDbContext>());
       }
-
+      
       app.MapGet("/", () => "meme feed up");
       app.MapMemes();
       app.Lifetime.ApplicationStarted.Register(() =>
@@ -43,6 +44,7 @@ namespace image_flip_bosch.Backend
       return 0;
     }
 
+    
     private static IEnumerable<IPAddress> LanAddresses() =>
       NetworkInterface.GetAllNetworkInterfaces()
         .Where(n => n.OperationalStatus == OperationalStatus.Up && n.NetworkInterfaceType != NetworkInterfaceType.Loopback)

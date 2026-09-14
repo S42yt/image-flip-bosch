@@ -168,7 +168,7 @@ namespace image_flip_bosch.CLI.Utils.Image
     private static string ExtensionFor(string url, string? mediaType)
     {
       string fromUrl = Path.GetExtension(new Uri(url).AbsolutePath).ToLowerInvariant();
-      if (fromUrl is ".png" or ".jpg" or ".jpeg" or ".gif" or ".webp" or ".bmp")
+      if (fromUrl is ".png" or ".jpg" or ".jpeg" or ".gif" or ".webp" or ".bmp" or ".mp4" or ".webm")
         return fromUrl;
 
       return mediaType switch
@@ -178,6 +178,8 @@ namespace image_flip_bosch.CLI.Utils.Image
         "image/gif" => ".gif",
         "image/webp" => ".webp",
         "image/bmp" => ".bmp",
+        "video/mp4" => ".mp4",
+        "video/webm" => ".webm",
         _ => ".img",
       };
     }

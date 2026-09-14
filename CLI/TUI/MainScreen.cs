@@ -51,6 +51,7 @@ namespace image_flip_bosch.CLI.TUI
     private readonly List<string> _debugLines = [];
     private const int MaxDebugLines = 200;
     private bool _loadingMore;
+    private string? _pendingQuery;
     private bool _searchUnavailable;
     private Meme? _selected;
     private string? _resultUrl;
@@ -97,6 +98,7 @@ namespace image_flip_bosch.CLI.TUI
         VerticalAlignment = VerticalAlignment.Fill,
       };
       _preview.LoadFailed += (_, msg) => Say($"Preview failed: {msg}", NotificationSeverity.Danger);
+      _preview.AnimationProgress += (_, p) => Say(p.Done == p.Total ? "GIF ready" : $"Rendering GIF {p.Done}/{p.Total}...");
 
       GridBuilder grid = Controls.Grid()
         .Rows(GridLength.Star())
@@ -251,7 +253,16 @@ namespace image_flip_bosch.CLI.TUI
           break;
         case ConsoleKey.F12: _ = UploadResultAsync();
           break;
-        case ConsoleKey.Escape: _window.FocusControl(_filter);
+        case ConsoleKey.Escape:
+          if (_filter.HasFocus && _filter.Input.Length > 0)
+          {
+            _filter.SetInput(string.Empty);
+            ApplyFilter(string.Empty);
+          }
+          else
+          {
+            _window.FocusControl(_filter);
+          }
           break;
         //case ConsoleKey.C when ctrl: _ = CopyResultImageAsync(); e.Handled = true; break;
         //case ConsoleKey.S when ctrl: _ = SaveCurrentAsync(); e.Handled = true; break;
@@ -417,8 +428,13 @@ namespace image_flip_bosch.CLI.TUI
 
     private async Task SearchAndMergeAsync(string query, CancellationToken ct)
     {
-      if (_loadingMore || _searchUnavailable) return;
+      if (_searchUnavailable) return;
       if (_searchedQueries.Contains(query)) return;
+      if (_loadingMore)
+      {
+        _pendingQuery = query;
+        return;
+      }
 
       EMemeTyp mode = _mode;
       _loadingMore = true;
@@ -443,14 +459,7 @@ namespace image_flip_bosch.CLI.TUI
         _allMemes = [.. _allMemes, .. added];
         Say($"Found {added.Count} more templates for \"{query}\"");
 
-        await _ws.InvokeAsync(() =>
-        {
-          Meme? keep = _selected;
-          ApplyFilter(_filter.Input, keepSelection: true);
-          int index = keep is null ? -1 : _templates.Items.FindIndex(i => ReferenceEquals(i.Tag, keep));
-          if (index >= 0) _templates.SelectedIndex = index;
-          else if (_templates.Items.Count > 0 && _templates.SelectedIndex < 0) _templates.SelectedIndex = 0;
-        });
+        await _ws.InvokeAsync(() => ApplyFilter(_filter.Input, keepSelection: true));
       }
       catch (OperationCanceledException) { }
       catch (Exception ex)
@@ -462,6 +471,10 @@ namespace image_flip_bosch.CLI.TUI
       {
         _loadingMore = false;
       }
+
+      string? next = Interlocked.Exchange(ref _pendingQuery, null);
+      if (next is not null && next != query && next == _filter.Input.Trim())
+        await SearchAndMergeAsync(next, CancellationToken.None);
     }
 
     private void ApplyFilter(string text, bool keepSelection = false)
@@ -476,8 +489,18 @@ namespace image_flip_bosch.CLI.TUI
         .ToList();
 
       _templates.Items = items;
-      if (items.Count > 0 && !keepSelection)
-        _templates.SelectedIndex = 0;
+      _templates.Title = needle.Length == 0 ? $"{ListTitle()} ({items.Count})" : $"{ListTitle()} ({items.Count} of {_allMemes.Length})";
+
+      if (items.Count == 0)
+      {
+        _templates.SelectedIndex = -1;
+        return;
+      }
+
+      int index = keepSelection && _selected is not null ? items.FindIndex(i => ReferenceEquals(i.Tag, _selected)) : -1;
+      if (index < 0) index = 0;
+      _templates.SelectedIndex = index;
+      OnTemplateSelected(items[index]);
     }
 
     private void OnTemplateSelected(ListItem? item)

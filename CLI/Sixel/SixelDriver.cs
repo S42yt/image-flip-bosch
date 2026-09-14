@@ -2,6 +2,7 @@
 using SharpConsoleUI.Core;
 using SharpConsoleUI.Drivers;
 using SharpConsoleUI.Layout;
+using System.Buffers;
 using System.Text;
 using Size = SharpConsoleUI.Helpers.Size;
 
@@ -27,7 +28,8 @@ namespace image_flip_bosch.CLI.Sixel
     private long _lastEmitTicks;
     private bool _throttleScheduled;
     private bool _forceAllSnapshot;
-    private static readonly TimeSpan MinEmitInterval = TimeSpan.FromMilliseconds(30);
+    private static readonly TimeSpan MinEmitInterval = TimeSpan.FromMilliseconds(8);
+    private readonly Stream _stdout = Console.OpenStandardOutput();
     private readonly bool _disabled = Environment.GetEnvironmentVariable("IFB_NO_SIXEL") is not null;
     private int[] _map = Array.Empty<int>();
     private int _w;
@@ -251,15 +253,18 @@ namespace image_flip_bosch.CLI.Sixel
         entry.LastX = x;
         entry.LastY = y;
 
-        StringBuilder sb = new(frame.Data.Length + 48);
-        sb.Append("\x1b[0m");
-        sb.Append("\x1b[").Append(y + 1).Append(';').Append(x + 1).Append('H');
-        sb.Append(frame.Data);
-        sb.Append("\x1b[0m");
-        sb.Append("\x1b[").Append(_cursorY + 1).Append(';').Append(_cursorX + 1).Append('H');
+        byte[] head = Encoding.ASCII.GetBytes($"\x1b[0m\x1b[{y + 1};{x + 1}H");
+        byte[] tail = Encoding.ASCII.GetBytes($"\x1b[0m\x1b[{_cursorY + 1};{_cursorX + 1}H");
+        int total = head.Length + frame.Data.Length + tail.Length;
+        byte[] buf = ArrayPool<byte>.Shared.Rent(total);
+        head.CopyTo(buf, 0);
+        frame.Data.CopyTo(buf, head.Length);
+        tail.CopyTo(buf, head.Length + frame.Data.Length);
 
-        Console.Out.Write(sb.ToString());
         Console.Out.Flush();
+        _stdout.Write(buf, 0, total);
+        _stdout.Flush();
+        ArrayPool<byte>.Shared.Return(buf);
         entry.Changed = false;
       }
 

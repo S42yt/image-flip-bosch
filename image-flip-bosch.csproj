@@ -29,6 +29,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <None Include=".github\workflows\release.yml" />
     <None Include="C:\Users\OWU1FE\Desktop\image-flip-bosch\.editorconfig" />
   </ItemGroup>
 

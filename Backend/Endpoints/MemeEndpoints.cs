@@ -44,9 +44,9 @@ namespace image_flip_bosch.Backend.Endpoints
       {
         return Results.StatusCode(StatusCodes.Status413PayloadTooLarge);
       }
-      if (!file.ContentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
+      if (!file.ContentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase) && file.ContentType is not ("video/mp4" or "video/webm"))
       {
-        return Results.BadRequest("image/* content type required");
+        return Results.BadRequest("image/*, video/mp4 or video/webm content type required");
       }
 
       using MemoryStream ms = new();
@@ -83,7 +83,7 @@ namespace image_flip_bosch.Backend.Endpoints
         .ToArray();
 
       List<MemeSummary> items = await db.Memes.AsNoTracking()
-        .Where(m => !seen.Contains(m.Id))
+        .Where(m => !((IEnumerable<long>)seen).Contains(m.Id))
         .OrderBy(m => EF.Functions.Random())
         .Take(take)
         .Select(m => new MemeSummary(
