@@ -83,3 +83,10 @@ Wir haben einen Nativen Image Viewer im Terminal gecodet womit man in geiler Qua
 Wir haben einen GIF renderer fürs Terminal.
 
 ![speed.gif](Assets/speed.gif)
+
+### Dev
+
+Debug: -DShowDebugScreen
+Gif Test: giftest
+Login: login
+Logout: logout
