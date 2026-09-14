@@ -4,7 +4,6 @@
     <OutputType>Exe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
     <RootNamespace>image_flip_bosch.CLI</RootNamespace>
-    <AssemblyName>image-flip-bosch</AssemblyName>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <ApplicationIcon>..\image_1789388467843071.ico</ApplicationIcon>
@@ -14,6 +13,7 @@
     <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
     <DebugType Condition="'$(Configuration)' == 'Release'">none</DebugType>
+    <PackageId>CLI</PackageId>
   </PropertyGroup>
 
   <ItemGroup>

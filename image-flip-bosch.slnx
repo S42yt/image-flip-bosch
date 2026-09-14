@@ -1,5 +1,5 @@
 <Solution>
-  <Project Path="CLI/image-flip-bosch.csproj" />
+  <Project Path="CLI/CLI.csproj" />
   <Project Path="ImgFlip/ImgFlip.csproj" />
   <Project Path="Backend/Backend.csproj" />
 </Solution>
