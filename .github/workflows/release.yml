@@ -2,8 +2,8 @@ name: Build and Release C# App
 
 on:
   push:
-    tags:
-      - 'v*'
+    branches: 
+      - master
 
 jobs:
   build-and-release:
