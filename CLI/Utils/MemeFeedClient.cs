@@ -4,7 +4,7 @@ using System.Text.Json;
 
 namespace image_flip_bosch.CLI.Utils
 {
-  public abstract record MemeFeedItem(long Id, string User, string ContentType, DateTime CreatedAt, int Size, int Score, int MyVote)
+  public sealed record MemeFeedItem(long Id, string User, string ContentType, DateTime CreatedAt, int Size, int Score, int MyVote)
   {
     public int Score { get; set; } = Score;
 
