@@ -7,8 +7,8 @@ on:
 
 jobs:
   build-and-release:
-    runs-on: windows-latest # Windows-Runner, ideal für native .exe-Erstellung
-    
+    runs-on: windows-latest
+
     permissions:
       contents: write
 
@@ -35,6 +35,6 @@ jobs:
           name: Release v1.0.${{ github.run_number }}
           draft: false
           prerelease: false
-          files: ./publish/bosch-image-creator.exe # Hier wird direkt die .exe aus dem publish-Ordner genommen
+          files: ./publish/*.exe
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
