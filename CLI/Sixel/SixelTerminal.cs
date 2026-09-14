@@ -58,7 +58,7 @@ namespace image_flip_bosch.CLI.Sixel
         int cellW = 10;
         int cellH = 20;
 
-        int da = response.IndexOf("\x1b[?", StringComparison.Ordinal);
+        int da = response.IndexOf("\e[?", StringComparison.Ordinal);
         if (da >= 0)
         {
           int end = response.IndexOf('c', da);
@@ -109,15 +109,15 @@ namespace image_flip_bosch.CLI.Sixel
       {
         if (!Console.KeyAvailable)
         {
-          System.Threading.Thread.Sleep(5);
+          Thread.Sleep(5);
           continue;
         }
 
         ConsoleKeyInfo k = Console.ReadKey(true);
         sb.Append(k.KeyChar);
         string s = sb.ToString();
-        if (s.Contains("\x1b[?") && s.IndexOf('c', s.IndexOf("\x1b[?", StringComparison.Ordinal)) > 0) sawDa = true;
-        if (s.Contains("\x1b[6;") && s.IndexOf('t', s.IndexOf("\x1b[6;", StringComparison.Ordinal)) > 0) sawCell = true;
+        if (s.Contains("\e[?") && s.IndexOf('c', s.IndexOf("\e[?", StringComparison.Ordinal)) > 0) sawDa = true;
+        if (s.Contains("\e[6;") && s.IndexOf('t', s.IndexOf("\e[6;", StringComparison.Ordinal)) > 0) sawCell = true;
       }
 
       return sb.ToString();

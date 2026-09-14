@@ -4,16 +4,15 @@ using SharpConsoleUI.Controls;
 using SharpConsoleUI.Core;
 using SharpConsoleUI.Layout;
 
-namespace image_flip_bosch.CLI.TUI
+namespace image_flip_bosch.CLI.TUI.Core
 {
 
-  internal abstract class NanoScreen
+  internal abstract class NanoScreen(ConsoleWindowSystem ws, string screenTitle)
   {
-    protected readonly ConsoleWindowSystem Ws;
-    protected NanoChrome Chrome;
+    protected readonly ConsoleWindowSystem Ws = ws;
+    protected NanoChrome Chrome = NanoChrome.From(ws.Theme);
     protected Window Window = null!;
 
-    private readonly string _screenTitle;
     private MarkupControl _header = null!;
     private MarkupControl _message = null!;
     private MarkupControl _shortcuts = null!;
@@ -21,16 +20,9 @@ namespace image_flip_bosch.CLI.TUI
     private NotificationSeverity? _lastSeverity;
     private CancellationTokenSource? _messageCts;
 
-    protected NanoScreen(ConsoleWindowSystem ws, string screenTitle)
-    {
-      Ws = ws;
-      Chrome = NanoChrome.From(ws.Theme);
-      _screenTitle = screenTitle;
-    }
-
     protected abstract IEnumerable<(string Key, string Label)> Shortcuts { get; }
 
-    protected virtual string HeaderCenter => _screenTitle;
+    protected virtual string HeaderCenter => screenTitle;
 
     protected void BuildWindow(IEnumerable<IWindowControl> body, bool modal, bool closable = true)
     {
@@ -52,24 +44,27 @@ namespace image_flip_bosch.CLI.TUI
         .Build();
       _shortcuts.SetContent(ShortcutRows());
 
-      List<IWindowControl> controls = new() { _header };
-      controls.AddRange(body);
-      controls.Add(_message);
-      controls.Add(_shortcuts);
+      List<IWindowControl> controls =
+      [
+        _header,
+        .. body,
+        _message,
+        _shortcuts
+      ];
 
       WindowBuilder builder = new WindowBuilder(Ws)
-        .WithTitle(_screenTitle)
+        .WithTitle(screenTitle)
         .Frameless()
         .Resizable(false)
         .Movable(false)
         .Closable(closable)
         .Minimizable(false)
         .Maximizable(false)
-        .AddControls(controls.ToArray());
+        .AddControls([.. controls]);
       if (modal) builder.AsModal();
 
       Window = builder.Build();
-      Window.PreviewKeyPressed += (s, e) => OnKey(e);
+      Window.PreviewKeyPressed += (_, e) => OnKey(e);
       Ws.ThemeStateService.ThemeChanged += OnThemeChanged;
       Window.OnClosed += (_, _) => Ws.ThemeStateService.ThemeChanged -= OnThemeChanged;
     }
@@ -78,7 +73,7 @@ namespace image_flip_bosch.CLI.TUI
 
     protected static GridControl CenteredColumn(int width, IReadOnlyList<IWindowControl> controls)
     {
-      GridLength[] rows = new GridLength[controls.Count];
+      var rows = new GridLength[controls.Count];
       for (int i = 0; i < rows.Length; i++) rows[i] = GridLength.Auto();
 
       GridControl grid = Controls.Grid()
@@ -116,7 +111,7 @@ namespace image_flip_bosch.CLI.TUI
         if (t.IsCanceled) return;
         _lastMessage = string.Empty;
         Ws.InvokeAsync(() => _message.SetContent([string.Empty]));
-      });
+      }, cts.Token);
     }
 
     protected virtual void OnChromeChanged() { }

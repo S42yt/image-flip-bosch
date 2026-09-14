@@ -10,10 +10,9 @@ namespace image_flip_bosch.CLI.Sixel
   {
     private static int _nextId;
 
-    private readonly object _lock = new();
+    private readonly Lock _lock = new();
     private readonly Dictionary<string, SixelFrame> _frameCache = new();
     private readonly LinkedList<string> _frameOrder = new();
-    private byte[]? _data;
     private string? _cacheKey;
     private int _version;
     private SixelFrame? _frame;
@@ -21,33 +20,31 @@ namespace image_flip_bosch.CLI.Sixel
     private (int cols, int rows, int cw, int ch, int version)? _encodingKey;
     private SixelDriver? _driver;
     private Rgba32 _background = new(0, 0, 0);
-    private List<SixelAnimationFrame>? _animation;
     private (int cols, int rows, int cw, int ch, int version)? _animationKey;
     private CancellationTokenSource? _animationCts;
-    private bool _isAnimated;
 
-    public SixelImageControl()
+    protected SixelImageControl()
     {
       SentinelId = Interlocked.Increment(ref _nextId);
     }
 
     public int SentinelId { get; }
 
-    public int MaxColors { get; set; } = 256;
+    private int MaxColors { get; set; } = 256;
 
-    public bool Dither { get; set; } = false;
+    private bool Dither { get; set; } = false;
 
-    public int FrameCacheSize { get; set; } = 24;
+    private int FrameCacheSize { get; set; } = 24;
 
-    public bool Animate { get; set; } = true;
+    private bool Animate { get; set; } = true;
 
-    public int AnimationMaxColors { get; set; } = 128;
+    public int AnimationMaxColors { get; init; } = 128;
 
-    public int AnimationMaxFrames { get; set; } = 200;
+    private int AnimationMaxFrames { get; set; } = 200;
 
-    public bool IsAnimated => _isAnimated;
+    public bool IsAnimated { get; private set; }
 
-    public bool IsPlaying => _animationCts is { IsCancellationRequested: false };
+    //public bool IsPlaying => _animationCts is { IsCancellationRequested: false };
 
     public event EventHandler<(int Done, int Total)>? AnimationProgress;
 
@@ -60,7 +57,7 @@ namespace image_flip_bosch.CLI.Sixel
       Container?.GetConsoleWindowSystem?.InvokeAsync(() => Invalidate(Invalidation.Repaint));
     }
 
-    public byte[]? ImageData => _data;
+    private byte[]? ImageData { get; set; }
 
     public override int? ContentWidth => null;
 
@@ -77,15 +74,14 @@ namespace image_flip_bosch.CLI.Sixel
       StopAnimation();
       lock (_lock)
       {
-        _data = data;
+        ImageData = data;
         _cacheKey = cacheKey;
         _version++;
         _frame = null;
         _frameKey = null;
         _encodingKey = null;
-        _animation = null;
         _animationKey = null;
-        _isAnimated = data is not null && Animate && SixelEncoder.IsAnimatedGif(data);
+        IsAnimated = data is not null && Animate && SixelEncoder.IsAnimatedGif(data);
         HasPendingFrame = false;
       }
       _driver?.RequestEmit(this);
@@ -108,7 +104,7 @@ namespace image_flip_bosch.CLI.Sixel
       int x1 = bounds.X + bounds.Width - Margin.Right;
       int y1 = bounds.Y + bounds.Height - Margin.Bottom;
 
-      Color fg = _data is null ? defaultForeground : Sentinel;
+      Color fg = ImageData is null ? defaultForeground : Sentinel;
       _background = new Rgba32(defaultBackground.R, defaultBackground.G, defaultBackground.B);
 
       for (int y = Math.Max(y0, clipRect.Y); y < Math.Min(y1, clipRect.Y + clipRect.Height); y++)
@@ -125,7 +121,7 @@ namespace image_flip_bosch.CLI.Sixel
 
       lock (_lock)
       {
-        data = _data;
+        data = ImageData;
         if (data is null) return null;
 
         key = (cols, rows, cellWidth, cellHeight, _version);
@@ -135,7 +131,7 @@ namespace image_flip_bosch.CLI.Sixel
           return _frame;
         }
 
-        if (_isAnimated)
+        if (IsAnimated)
         {
           if (_animationKey == key) return null;
           if (_encodingKey == key) return null;
@@ -143,7 +139,7 @@ namespace image_flip_bosch.CLI.Sixel
         }
       }
 
-      if (_isAnimated)
+      if (IsAnimated)
       {
         StartAnimationEncode(data, key, background);
         return null;
@@ -244,7 +240,6 @@ namespace image_flip_bosch.CLI.Sixel
         {
           if (_encodingKey != key || cts.IsCancellationRequested) return;
           _encodingKey = null;
-          _animation = frames;
           _animationKey = key;
         }
 
@@ -283,8 +278,7 @@ namespace image_flip_bosch.CLI.Sixel
 
     private void Remember(string id, SixelFrame frame)
     {
-      if (_frameCache.ContainsKey(id)) return;
-      _frameCache[id] = frame;
+      if (!_frameCache.TryAdd(id, frame)) return;
       _frameOrder.AddLast(id);
       while (_frameOrder.Count > Math.Max(1, FrameCacheSize))
       {
@@ -297,11 +291,9 @@ namespace image_flip_bosch.CLI.Sixel
     private void EnsureDriver()
     {
       if (_driver is not null) return;
-      if (Container?.GetConsoleWindowSystem?.ConsoleDriver is SixelDriver driver)
-      {
-        _driver = driver;
-        driver.Register(this);
-      }
+      if (Container?.GetConsoleWindowSystem?.ConsoleDriver is not SixelDriver driver) return;
+      _driver = driver;
+      driver.Register(this);
     }
 
     protected override void OnDisposing()

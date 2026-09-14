@@ -1,5 +1,3 @@
-using System;
-using System.IO;
 using System.Text;
 
 namespace image_flip_bosch.CLI.Utils
@@ -17,7 +15,7 @@ namespace image_flip_bosch.CLI.Utils
 
   public static class Logger
   {
-    private static readonly object Lock = new();
+    private static readonly Lock Lock = new();
     private static TextWriter _writer = Console.Out;
     private static StreamWriter? _fileWriter;
     private static bool _consoleOutput = true;

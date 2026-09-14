@@ -30,16 +30,13 @@ namespace image_flip_bosch.CLI.Utils.Image
         return await RunAsync("osascript", $"-e '{script}'");
       }
 
-      if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-      {
-        string mime = MimeFor(full);
-        if (Environment.GetEnvironmentVariable("WAYLAND_DISPLAY") is not null
-            && await RunAsync("wl-copy", $"--type {mime}", full))
-          return true;
-        return await RunAsync("xclip", $"-selection clipboard -t {mime} -i \"{full}\"");
-      }
+      if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux)) return false;
+      string mime = MimeFor(full);
+      if (Environment.GetEnvironmentVariable("WAYLAND_DISPLAY") is not null
+          && await RunAsync("wl-copy", $"--type {mime}", full))
+        return true;
+      return await RunAsync("xclip", $"-selection clipboard -t {mime} -i \"{full}\"");
 
-      return false;
     }
 
     private static string MimeFor(string path) => Path.GetExtension(path).ToLowerInvariant() switch

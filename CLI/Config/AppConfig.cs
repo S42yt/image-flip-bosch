@@ -4,11 +4,11 @@ namespace image_flip_bosch.CLI.Config
   {
     public string? Theme { get; set; } = "Bosch";
 
-    public CacheConfig Cache { get; set; } = new();
+    public CacheConfig Cache { get; } = new();
 
-    public ImgFlipConfig ImgFlip { get; set; } = new();
+    public ImgFlipConfig ImgFlip { get; } = new();
 
-    public FeedConfig Feed { get; set; } = new();
+    public FeedConfig Feed { get; } = new();
 
     public string? Proxy { get; set; }
 
@@ -16,7 +16,7 @@ namespace image_flip_bosch.CLI.Config
     {
       if (string.IsNullOrWhiteSpace(Proxy)) return;
       string url = Proxy.Contains("://") ? Proxy : "http://" + Proxy;
-      System.Net.Http.HttpClient.DefaultProxy = new System.Net.WebProxy(url) { BypassProxyOnLocal = true };
+      HttpClient.DefaultProxy = new System.Net.WebProxy(url) { BypassProxyOnLocal = true };
     }
   }
 

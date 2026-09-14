@@ -26,7 +26,7 @@ namespace image_flip_bosch.CLI.Sixel
       int canvasW = Math.Max(1, cols * cellWidth);
       int canvasH = Math.Max(1, rows * cellHeight);
 
-      using Image<Rgba32> source = Image.Load<Rgba32>(imageData);
+      using var source = Image.Load<Rgba32>(imageData);
 
       double scale = Math.Min(1.0, Math.Min((double)canvasW / source.Width, (double)canvasH / source.Height));
       int targetW = Math.Max(1, (int)Math.Round(source.Width * scale));
@@ -37,9 +37,9 @@ namespace image_flip_bosch.CLI.Sixel
 
       int offX = (canvasW - targetW) / 2;
       int offY = (canvasH - targetH) / 2;
-
+      
       using Image<Rgba32> canvas = new(canvasW, canvasH, background);
-      canvas.Mutate(x => x.DrawImage(source, new Point(offX, offY), 1f));
+      canvas.Mutate(x => { x.DrawImage(source, new Point(offX, offY), 1f); });
 
       string image = Encode(canvas, maxColors, dither, opaque: true);
       return new SixelFrame(image, cols, rows, canvasW, canvasH);
@@ -50,7 +50,7 @@ namespace image_flip_bosch.CLI.Sixel
       if (data.Length < 6 || data[0] != (byte)'G' || data[1] != (byte)'I' || data[2] != (byte)'F') return false;
       try
       {
-        using Image<Rgba32> image = Image.Load<Rgba32>(data);
+        using var image = Image.Load<Rgba32>(data);
         return image.Frames.Count > 1;
       }
       catch
@@ -69,12 +69,12 @@ namespace image_flip_bosch.CLI.Sixel
       int maxColors = 128,
       int maxFrames = 200,
       Action<int, int>? progress = null,
-      System.Threading.CancellationToken ct = default)
+      CancellationToken ct = default)
     {
       int canvasW = Math.Max(1, cols * cellWidth);
       int canvasH = Math.Max(1, rows * cellHeight);
 
-      using Image<Rgba32> gif = Image.Load<Rgba32>(gifData);
+      using var gif = Image.Load<Rgba32>(gifData);
       int frameCount = Math.Min(gif.Frames.Count, maxFrames);
 
       double scale = Math.Min(1.0, Math.Min((double)canvasW / gif.Width, (double)canvasH / gif.Height));
@@ -109,7 +109,7 @@ namespace image_flip_bosch.CLI.Sixel
     public static string SolidRect(int width, int height, Rgba32 color)
     {
       StringBuilder sb = new(256);
-      sb.Append("\x1bP0;0;0q");
+      sb.Append("\eP0;0;0q");
       sb.Append("\"1;1;").Append(width).Append(';').Append(height);
       sb.Append("#0;2;").Append(color.R * 100 / 255).Append(';').Append(color.G * 100 / 255).Append(';').Append(color.B * 100 / 255);
       for (int band = 0; band < height; band += 6)
@@ -118,11 +118,11 @@ namespace image_flip_bosch.CLI.Sixel
         char ch = (char)(63 + ((1 << bandRows) - 1));
         sb.Append("#0!").Append(width).Append(ch).Append('-');
       }
-      sb.Append("\x1b\\");
+      sb.Append("\e\\");
       return sb.ToString();
     }
 
-    public static string Encode(Image<Rgba32> image, int maxColors = 256, bool dither = true, bool opaque = false)
+    private static string Encode(Image<Rgba32> image, int maxColors = 256, bool dither = true, bool opaque = false)
     {
       QuantizerOptions options = new()
       {
@@ -138,7 +138,7 @@ namespace image_flip_bosch.CLI.Sixel
       ReadOnlySpan<Rgba32> palette = indexed.Palette.Span;
 
       StringBuilder sb = new(w * h / 4 + 1024);
-      sb.Append(opaque ? "\x1bP0;0;0q" : "\x1bP0;1;0q");
+      sb.Append(opaque ? "\eP0;0;0q" : "\eP0;1;0q");
       sb.Append("\"1;1;").Append(w).Append(';').Append(h);
 
       for (int i = 0; i < palette.Length; i++)
@@ -153,7 +153,7 @@ namespace image_flip_bosch.CLI.Sixel
       int colors = palette.Length;
       byte[] bits = new byte[colors * w];
       bool[] used = new bool[colors];
-      byte[] alpha = new byte[w];
+      //byte[] alpha = new byte[w];
 
       for (int band = 0; band < h; band += 6)
       {
@@ -203,7 +203,7 @@ namespace image_flip_bosch.CLI.Sixel
         sb.Append('-');
       }
 
-      sb.Append("\x1b\\");
+      sb.Append("\e\\");
       return sb.ToString();
     }
 

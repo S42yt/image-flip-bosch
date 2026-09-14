@@ -2,7 +2,6 @@
 using SharpConsoleUI.Core;
 using SharpConsoleUI.Drivers;
 using SharpConsoleUI.Layout;
-using System.Drawing;
 using System.Text;
 using Size = SharpConsoleUI.Helpers.Size;
 
@@ -22,7 +21,7 @@ namespace image_flip_bosch.CLI.Sixel
 
     private readonly IConsoleDriver _inner;
     private readonly Dictionary<int, Entry> _entries = new();
-    private readonly object _lock = new();
+    private readonly Lock _lock = new();
     private int _cursorX;
     private int _cursorY;
     private long _lastEmitTicks;
@@ -42,10 +41,10 @@ namespace image_flip_bosch.CLI.Sixel
       _inner = inner;
       Capabilities = capabilities ?? SixelCapabilities.Default;
 
-      _inner.KeyPressed += (s, e) => KeyPressed?.Invoke(this, e);
-      _inner.Paste += (s, e) => Paste?.Invoke(this, e);
-      _inner.MouseEvent += (s, flags, point) => MouseEvent?.Invoke(this, flags, point);
-      _inner.ScreenResized += (s, size) =>
+      _inner.KeyPressed += (_, e) => KeyPressed?.Invoke(this, e);
+      _inner.Paste += (_, e) => Paste?.Invoke(this, e);
+      _inner.MouseEvent += (_, flags, point) => MouseEvent?.Invoke(this, flags, point);
+      _inner.ScreenResized += (_, size) =>
       {
         lock (_lock) { EnsureMap(size.Width, size.Height, reset: true); _forceAll = true; }
         ScreenResized?.Invoke(this, size);
@@ -127,7 +126,7 @@ namespace image_flip_bosch.CLI.Sixel
     public void Initialize(ConsoleWindowSystem windowSystem) => _inner.Initialize(windowSystem);
     public int GetDirtyCharacterCount() => _inner.GetDirtyCharacterCount();
 
-    public void SetNarrowCell(int x, int y, char character, SharpConsoleUI.Color fg, SharpConsoleUI.Color bg)
+    public void SetNarrowCell(int x, int y, char character, Color fg, Color bg)
     {
       lock (_lock)
       {
@@ -137,7 +136,7 @@ namespace image_flip_bosch.CLI.Sixel
       _inner.SetNarrowCell(x, y, character, fg, bg);
     }
 
-    public void FillCells(int x, int y, int width, char character, SharpConsoleUI.Color fg, SharpConsoleUI.Color bg)
+    public void FillCells(int x, int y, int width, char character, Color fg, Color bg)
     {
       int id = SixelImageControl.SentinelToId(fg, character);
       lock (_lock)
@@ -148,7 +147,7 @@ namespace image_flip_bosch.CLI.Sixel
       _inner.FillCells(x, y, width, character, fg, bg);
     }
 
-    public void WriteBufferRegion(int destX, int destY, CharacterBuffer source, int srcX, int srcY, int width, SharpConsoleUI.Color fallbackBg)
+    public void WriteBufferRegion(int destX, int destY, CharacterBuffer source, int srcX, int srcY, int width, Color fallbackBg)
     {
       if (_entries.Count > 0)
       {
@@ -194,14 +193,14 @@ namespace image_flip_bosch.CLI.Sixel
     private void EmitPending()
     {
       if (_disabled) return;
-      List<(Entry entry, int x, int y, int w, int h)> ready = new();
+      List<(Entry entry, int x, int y, int w, int h)> ready = [];
 
       lock (_lock)
       {
         _forceAllSnapshot = _forceAll;
         foreach (Entry entry in _entries.Values)
         {
-          if (!_forceAll && !entry.Changed && !entry.Control.HasPendingFrame) continue;
+          if (!_forceAll && entry is { Changed: false, Control.HasPendingFrame: false }) continue;
 
           int id = entry.Control.SentinelId;
           int minX = int.MaxValue, minY = int.MaxValue, maxX = -1, maxY = -1, count = 0;
@@ -231,7 +230,7 @@ namespace image_flip_bosch.CLI.Sixel
 
       if (ready.Count == 0) return;
 
-      TimeSpan sinceLast = TimeSpan.FromTicks(DateTime.UtcNow.Ticks - _lastEmitTicks);
+      var sinceLast = TimeSpan.FromTicks(DateTime.UtcNow.Ticks - _lastEmitTicks);
       if (sinceLast < MinEmitInterval)
       {
         lock (_lock) _forceAll = _forceAll || _forceAllSnapshot;

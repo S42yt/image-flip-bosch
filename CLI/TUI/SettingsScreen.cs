@@ -4,10 +4,7 @@ using SharpConsoleUI;
 using SharpConsoleUI.Builders;
 using SharpConsoleUI.Controls;
 using SharpConsoleUI.Core;
-using SharpConsoleUI.Layout;
-using System;
-using System.Collections.Generic;
-using System.Linq;
+using image_flip_bosch.CLI.TUI.Core;
 
 namespace image_flip_bosch.CLI.TUI
 {
@@ -24,12 +21,11 @@ namespace image_flip_bosch.CLI.TUI
     private readonly CheckboxControl _noWatermark;
     private readonly CheckboxControl _includeNsfw;
     private readonly CheckboxControl _customBoxes;
-    private readonly DropdownControl _theme;
     private readonly PromptControl _feedUrl;
     private readonly PromptControl _proxy;
     private readonly MarkupControl _account;
 
-    public SettingsScreen(ConsoleWindowSystem ws, ConfigStore<AppConfig> configStore, ImgflipSetup setup, Window? parent = null, Action? onSaved = null)
+    public SettingsScreen(ConsoleWindowSystem ws, ConfigStore<AppConfig> configStore, ImgflipSetup setup, Action? onSaved = null)
       : base(ws, "Settings")
     {
       _configStore = configStore;
@@ -88,7 +84,7 @@ namespace image_flip_bosch.CLI.TUI
 
       IReadOnlyList<string> themeNames = AppThemes.Names(ws);
       int currentTheme = themeNames.ToList().FindIndex(n => string.Equals(n, AppThemes.Current(ws), StringComparison.OrdinalIgnoreCase));
-      _theme = Controls.Dropdown(" Theme: ")
+      DropdownControl theme = Controls.Dropdown(" Theme: ")
         .AddItems(themeNames.ToArray())
         .SelectedIndex(Math.Max(0, currentTheme))
         .OnSelectedItemChanged((_, item) =>
@@ -123,7 +119,7 @@ namespace image_flip_bosch.CLI.TUI
         _proxy,
         Controls.Markup(string.Empty).Build(),
         Controls.Markup(Chrome.SectionText(" Appearance")).Build(),
-        _theme,
+        theme,
       ];
 
       BuildWindow([CenteredColumn(72, column)], modal: true);

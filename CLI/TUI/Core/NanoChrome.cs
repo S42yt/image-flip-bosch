@@ -2,9 +2,8 @@ using SharpConsoleUI;
 using SharpConsoleUI.Core;
 using SharpConsoleUI.Parsing;
 using SharpConsoleUI.Themes;
-using System;
 
-namespace image_flip_bosch.CLI.TUI
+namespace image_flip_bosch.CLI.TUI.Core
 {
 
   internal sealed class NanoChrome
@@ -12,22 +11,22 @@ namespace image_flip_bosch.CLI.TUI
     public Color Background { get; private init; }
     public Color Foreground { get; private init; }
     public Color HeaderBackground { get; private init; }
-    public Color HeaderForeground { get; private init; }
-    public Color HeaderTitle { get; private init; }
+    private Color HeaderForeground { get; init; }
+    private Color HeaderTitle { get; init; }
     public Color BarBackground { get; private init; }
-    public Color BarForeground { get; private init; }
-    public Color KeyBackground { get; private init; }
-    public Color KeyForeground { get; private init; }
-    public Color StatusBackground { get; private init; }
-    public Color Accent { get; private init; }
-    public Color Section { get; private init; }
-    public Color Info { get; private init; }
+    private Color BarForeground { get; init; }
+    private Color KeyBackground { get; init; }
+    private Color KeyForeground { get; init; }
+    private Color StatusBackground { get; init; }
+    private Color Accent { get; init; }
+    private Color Section { get; init; }
+    private Color Info { get; init; }
     public Color Success { get; private init; }
-    public Color Warning { get; private init; }
-    public Color Danger { get; private init; }
-    public Color Muted { get; private init; }
+    private Color Warning { get; init; }
+    private Color Danger { get; init; }
+    private Color Muted { get; init; }
     public Color Separator { get; private init; }
-    public Color Highlight { get; private init; }
+    private Color Highlight { get; init; }
 
     public static NanoChrome From(ITheme theme)
     {

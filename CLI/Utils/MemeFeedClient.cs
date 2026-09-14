@@ -4,26 +4,21 @@ using System.Text.Json;
 
 namespace image_flip_bosch.CLI.Utils
 {
-  public sealed record MemeFeedItem(long Id, string User, string ContentType, DateTime CreatedAt, int Size, int Score, int MyVote)
+  public abstract record MemeFeedItem(long Id, string User, string ContentType, DateTime CreatedAt, int Size, int Score, int MyVote)
   {
     public int Score { get; set; } = Score;
 
     public int MyVote { get; set; } = MyVote;
   }
 
-  public sealed class MemeFeedClient
+  public sealed class MemeFeedClient(string baseUrl)
   {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
-    private readonly HttpClient _http;
-
-    public MemeFeedClient(string baseUrl)
+    private readonly HttpClient _http = new(new SocketsHttpHandler { UseProxy = false })
     {
-      _http = new HttpClient(new SocketsHttpHandler { UseProxy = false })
-      {
-        BaseAddress = new Uri(baseUrl.TrimEnd('/') + "/"),
-        Timeout = TimeSpan.FromSeconds(30),
-      };
-    }
+      BaseAddress = new Uri(baseUrl.TrimEnd('/') + "/"),
+      Timeout = TimeSpan.FromSeconds(30),
+    };
 
     public string BaseUrl => _http.BaseAddress!.ToString().TrimEnd('/');
 
@@ -39,7 +34,7 @@ namespace image_flip_bosch.CLI.Utils
     {
       using HttpResponseMessage response = await _http.PostAsJsonAsync($"memes/{id}/vote", new { user, value }, Json, ct);
       await EnsureOk(response, ct);
-      using JsonDocument doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync(ct));
+      using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync(ct));
       return (doc.RootElement.GetProperty("score").GetInt32(), doc.RootElement.GetProperty("myVote").GetInt32());
     }
 
@@ -54,7 +49,7 @@ namespace image_flip_bosch.CLI.Utils
       using HttpResponseMessage response = await _http.PostAsync("memes", form, ct);
       bool duplicate = response.StatusCode == System.Net.HttpStatusCode.Conflict;
       if (!duplicate) await EnsureOk(response, ct);
-      using JsonDocument doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync(ct));
+      using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync(ct));
       return (doc.RootElement.GetProperty("id").GetInt64(), duplicate);
     }
 

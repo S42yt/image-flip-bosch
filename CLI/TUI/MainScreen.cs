@@ -1,5 +1,6 @@
 using image_flip_bosch.CLI.Config;
 using image_flip_bosch.CLI.Config.ImgFlip;
+using image_flip_bosch.CLI.TUI.Core;
 using image_flip_bosch.CLI.Utils;
 using image_flip_bosch.CLI.Utils.Image;
 using image_flip_bosch.CLI.Utils.Native;
@@ -28,7 +29,6 @@ namespace image_flip_bosch.CLI.TUI
     private readonly ImgflipSession _imgflip;
     private readonly ConfigStore<AppConfig> _configStore;
     private readonly ImgflipSetup _setup;
-    private readonly AppOptions _options;
     private MemeFeedClient _feed;
 
     private readonly MarkupControl _header;
@@ -39,16 +39,16 @@ namespace image_flip_bosch.CLI.TUI
     private readonly MarkupControl _shortcuts;
     private readonly MarkupControl? _debugLog;
     private readonly Window _window;
-    private GridControl? _contentGrid;
+    private readonly GridControl? _contentGrid;
     private NanoChrome _chrome;
     private string _lastMessage = string.Empty;
     private NotificationSeverity? _lastSeverity;
 
     private EMemeTyp _mode = EMemeTyp.Image;
-    private Meme[] _allMemes = Array.Empty<Meme>();
-    private readonly HashSet<string> _knownIds = new();
+    private Meme[] _allMemes = [];
+    private readonly HashSet<string> _knownIds = [];
     private readonly HashSet<string> _searchedQueries = new(StringComparer.OrdinalIgnoreCase);
-    private readonly List<string> _debugLines = new();
+    private readonly List<string> _debugLines = [];
     private const int MaxDebugLines = 200;
     private bool _loadingMore;
     private bool _searchUnavailable;
@@ -67,7 +67,6 @@ namespace image_flip_bosch.CLI.TUI
       _imgflip = imgflip;
       _configStore = configStore;
       _setup = setup;
-      _options = options;
       _feed = new MemeFeedClient(configStore.Load().Feed.BaseUrl);
       _chrome = NanoChrome.From(ws.Theme);
 
@@ -81,7 +80,7 @@ namespace image_flip_bosch.CLI.TUI
         .WithPlaceholder("type to filter or search templates")
         .UnfocusOnEnter(false)
         .OnInputChanged((_, text) => { ApplyFilter(text); ScheduleSearch(text); })
-        .OnEntered((_, _) => _window.FocusControl(_templates))
+        .OnEntered((_, _) => _window?.FocusControl(_templates))
         .StickyTop()
         .Build();
 
@@ -119,14 +118,14 @@ namespace image_flip_bosch.CLI.TUI
           .WithVerticalAlignment(VerticalAlignment.Fill)
           .Build();
 
-        content = grid.Columns(GridLength.Star(1), GridLength.Star(2), GridLength.Star(1)).Build();
+        content = grid.Columns(GridLength.Star(), GridLength.Star(2), GridLength.Star()).Build();
         content.Place(_templates, 0, 0);
         content.Place(_preview, 0, 1);
         content.Place(logPanel, 0, 2);
       }
       else
       {
-        content = grid.Columns(GridLength.Star(1), GridLength.Star(2)).Build();
+        content = grid.Columns(GridLength.Star(), GridLength.Star(2)).Build();
         content.Place(_templates, 0, 0);
         content.Place(_preview, 0, 1);
       }
@@ -209,7 +208,7 @@ namespace image_flip_bosch.CLI.TUI
 
     private List<string> ShortcutRows() =>
     [
-      _chrome.Key("F5", "Caption") + _chrome.Key("F6", "Copy URL") + _chrome.Key("F7", "Save") + _chrome.Key("F8", "Settings") + _chrome.Key("F10", "Feed") + _chrome.Key("F12", "Upload") + (GifsAvailable ? _chrome.Key("F2", GifMode ? "Images" : "GIFs") : string.Empty),
+      _chrome.Key("F5", "Caption") + _chrome.Key("F6", "Copy image") + _chrome.Key("F7", "Save") + _chrome.Key("F8", "Settings") + _chrome.Key("F10", "Feed") + _chrome.Key("F12", "Upload") + (GifsAvailable ? _chrome.Key("F2", GifMode ? "Images" : "GIFs") : string.Empty),
       _chrome.Key("F9", "Reload") + _chrome.Key("F3", "Theme") + _chrome.Key("F1", "Help") + _chrome.Key("F4", "Exit"),
     ];
 
@@ -228,33 +227,48 @@ namespace image_flip_bosch.CLI.TUI
 
     private void OnKey(object? sender, KeyPressedEventArgs e)
     {
-      bool ctrl = e.KeyInfo.Modifiers.HasFlag(ConsoleModifiers.Control);
       switch (e.KeyInfo.Key)
       {
-        case ConsoleKey.F1: ShowHelp(); e.Handled = true; break;
-        case ConsoleKey.F2 when GifsAvailable: ToggleMode(); e.Handled = true; break;
-        case ConsoleKey.F3: CycleTheme(e.KeyInfo.Modifiers.HasFlag(ConsoleModifiers.Shift)); e.Handled = true; break;
-        case ConsoleKey.F4: _ws.Shutdown(); e.Handled = true; break;
-        case ConsoleKey.F5: _ = OpenCaptionsAsync(); e.Handled = true; break;
-        case ConsoleKey.F6: CopyResultUrl(); e.Handled = true; break;
-        case ConsoleKey.F7: _ = SaveCurrentAsync(); e.Handled = true; break;
-        case ConsoleKey.F8: OpenSettings(); e.Handled = true; break;
-        case ConsoleKey.F9: _ = LoadTemplatesAsync(); e.Handled = true; break;
-        case ConsoleKey.F10: OpenDoomScroll(); e.Handled = true; break;
-        case ConsoleKey.F12: _ = UploadResultAsync(); e.Handled = true; break;
-        case ConsoleKey.Escape: _window.FocusControl(_filter); e.Handled = true; break;
-        //case ConsoleKey.C when ctrl: CopyResultUrl(); e.Handled = true; break;
+        case ConsoleKey.F1: ShowHelp();
+          break;
+        case ConsoleKey.F2 when GifsAvailable: ToggleMode();
+          break;
+        case ConsoleKey.F3: CycleTheme(e.KeyInfo.Modifiers.HasFlag(ConsoleModifiers.Shift));
+          break;
+        case ConsoleKey.F4: _ws.Shutdown();
+          break;
+        case ConsoleKey.F5: _ = OpenCaptionsAsync();
+          break;
+        case ConsoleKey.F6: _ = CopyResultImageAsync();
+          break;
+        case ConsoleKey.F7: _ = SaveCurrentAsync();
+          break;
+        case ConsoleKey.F8: OpenSettings();
+          break;
+        case ConsoleKey.F9: _ = LoadTemplatesAsync();
+          break;
+        case ConsoleKey.F10: OpenDoomScroll();
+          break;
+        case ConsoleKey.F12: _ = UploadResultAsync();
+          break;
+        case ConsoleKey.Escape: _window.FocusControl(_filter);
+          break;
+        //case ConsoleKey.C when ctrl: _ = CopyResultImageAsync(); e.Handled = true; break;
         //case ConsoleKey.S when ctrl: _ = SaveCurrentAsync(); e.Handled = true; break;
         //case ConsoleKey.R when ctrl: _ = LoadTemplatesAsync(); e.Handled = true; break;
         //case ConsoleKey.O when ctrl: OpenSettings(); e.Handled = true; break;
         //case ConsoleKey.X when ctrl: _ws.Shutdown(); e.Handled = true; break;
+        default:
+          throw new ArgumentOutOfRangeException();
       }
+
+      e.Handled = true;
     }
 
     private void ShowHelp() =>
       Say(GifsAvailable
-        ? "Type to filter, Enter or F5 to caption, F2 switches image/GIF templates, F7 saves, F6 copies the URL, F12 uploads to the feed, F10 opens the feed"
-        : "Type to filter, Enter or F5 to caption, F7 saves, F6 copies the URL, F12 uploads to the feed, F10 opens the feed");
+        ? "Type to filter, Enter or F5 to caption, F2 switches image/GIF templates, F7 saves, F6 copies the image, F12 uploads to the feed, F10 opens the feed"
+        : "Type to filter, Enter or F5 to caption, F7 saves, F6 copies the image, F12 uploads to the feed, F10 opens the feed");
 
     private void ToggleMode()
     {
@@ -279,7 +293,7 @@ namespace image_flip_bosch.CLI.TUI
     }
 
     private void OpenSettings() =>
-      new SettingsScreen(_ws, _configStore, _setup, _window, () =>
+      new SettingsScreen(_ws, _configStore, _setup, () =>
       {
         Say(_setup.IsConfigured ? $"Logged in as {_setup.Username}" : "No Imgflip login");
         string feedUrl = _configStore.Load().Feed.BaseUrl;
@@ -394,17 +408,12 @@ namespace image_flip_bosch.CLI.TUI
       string query = _filter.Input.Trim();
       if (query.Length == 0) query = "meme";
 
-      if (!_imgflip.IsAuthenticated)
-      {
-        if (!_searchUnavailable)
-        {
-          _searchUnavailable = true;
-          Say("End of the free template list. Searching more templates needs an Imgflip login (F8)", NotificationSeverity.Warning);
-        }
-        return Task.CompletedTask;
-      }
+      if (_imgflip.IsAuthenticated) return SearchAndMergeAsync(query, CancellationToken.None);
+      if (_searchUnavailable) return Task.CompletedTask;
+      _searchUnavailable = true;
+      Say("End of the free template list. Searching more templates needs an Imgflip login (F8)", NotificationSeverity.Warning);
+      return Task.CompletedTask;
 
-      return SearchAndMergeAsync(query, CancellationToken.None);
     }
 
     private async Task SearchAndMergeAsync(string query, CancellationToken ct)
@@ -513,7 +522,7 @@ namespace image_flip_bosch.CLI.TUI
       Meme meme = _selected;
       string? imagePath = _cache.TryGetPath(meme.Url);
       bool customDefault = _configStore.Load().ImgFlip.CustomBoxPositions;
-      MemeCreationBox[]? boxes = await new CaptionScreen(_ws, meme, imagePath, customDefault, _lastCaptions).ShowAsync();
+      MemeCreationBox[]? boxes = await new MemeCreationScreen(_ws, meme, imagePath, customDefault, _lastCaptions).ShowAsync();
       if (boxes is null) return;
 
       _lastCaptions = boxes;
@@ -530,7 +539,7 @@ namespace image_flip_bosch.CLI.TUI
       try
       {
         ImgFlipConfig options = _configStore.Load().ImgFlip;
-        _previewCts?.Cancel();
+        await _previewCts?.CancelAsync()!;
 
         bool? noWatermark = options.NoWatermark && _imgflip.IsAuthenticated ? true : null;
         bool positioned = boxes.Any(b => b.X is not null);
@@ -560,18 +569,30 @@ namespace image_flip_bosch.CLI.TUI
       }
     }
 
-    private void CopyResultUrl()
+    private async Task CopyResultImageAsync()
     {
       if (_resultUrl is null) { Say("No meme created yet", NotificationSeverity.Warning); return; }
-      ClipboardHelper.SetText(_resultUrl);
-      Say("URL copied to clipboard", NotificationSeverity.Success);
+      try
+      {
+        string path = await _cache.GetAsync(_resultUrl);
+        if (await ImageClipboard.CopyFileAsync(path))
+        {
+          Say("Image copied to clipboard", NotificationSeverity.Success);
+          return;
+        }
+        ClipboardHelper.SetText(_resultUrl);
+        Say("Image copy unsupported here, URL copied instead", NotificationSeverity.Warning);
+      }
+      catch (Exception ex)
+      {
+        Say($"Copy failed: {ex.Message}", NotificationSeverity.Danger);
+      }
     }
 
     private async Task SaveCurrentAsync()
     {
-      string? source = _preview.CurrentPath;
       string? sourceUrl = _resultUrl ?? _selected?.Url;
-      if (source is null || sourceUrl is null) { Say("Nothing to save yet", NotificationSeverity.Warning); return; }
+      if (sourceUrl is null) { Say("Nothing to save yet", NotificationSeverity.Warning); return; }
 
       string defaultName = Path.GetFileName(new Uri(sourceUrl).AbsolutePath);
       if (_resultUrl is null && _selected is not null)
@@ -586,8 +607,11 @@ namespace image_flip_bosch.CLI.TUI
 
       try
       {
-        Directory.CreateDirectory(Path.GetDirectoryName(target)!);
-        File.Copy(source, target, overwrite: true);
+        Say("Downloading...");
+        await FileDownloader.DownloadAsync(sourceUrl, target, new Progress<(long received, long? total)>(p =>
+        {
+          if (p.total is { } total and > 0) Say($"Downloading {p.received * 100 / total}%");
+        }));
         Say($"Saved {target}", NotificationSeverity.Success);
       }
       catch (Exception ex)

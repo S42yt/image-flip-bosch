@@ -1,47 +1,33 @@
-using System;
-using System.IO;
 using System.Text;
-
-
 namespace image_flip_bosch.CLI.Utils
-{
 
+{
+  [Obsolete("Class was used to fix a Memory bug, now not needed anymore")]
   public static class ConsoleTap
   {
-    private sealed class TeeWriter : TextWriter
+    private sealed class TeeWriter(TextWriter inner, StreamWriter tap, string tag) : TextWriter
     {
-      private readonly TextWriter _inner;
-      private readonly StreamWriter _tap;
-      private readonly string _tag;
-
-      public TeeWriter(TextWriter inner, StreamWriter tap, string tag)
-      {
-        _inner = inner;
-        _tap = tap;
-        _tag = tag;
-      }
-
-      public override Encoding Encoding => _inner.Encoding;
+      public override Encoding Encoding => inner.Encoding;
 
       public override void Write(char value)
       {
-        _inner.Write(value);
+        inner.Write(value);
         Record(value.ToString(), "char");
       }
 
       public override void Write(string? value)
       {
-        _inner.Write(value);
+        inner.Write(value);
         Record(value ?? string.Empty, "string");
       }
 
       public override void Write(char[] buffer, int index, int count)
       {
-        _inner.Write(buffer, index, count);
+        inner.Write(buffer, index, count);
         Record(new string(buffer, index, count), "chars");
       }
 
-      public override void Flush() => _inner.Flush();
+      public override void Flush() => inner.Flush();
 
       private void Record(string text, string kind)
       {
@@ -56,9 +42,9 @@ namespace image_flip_bosch.CLI.Utils
           else if (c < 32) sb.Append($"<{(int)c:X2}>");
           else sb.Append(c);
         }
-        lock (_tap)
+        lock (tap)
         {
-          _tap.WriteLine($"[{_tag} {kind} {Environment.CurrentManagedThreadId}] {sb}");
+          tap.WriteLine($"[{tag} {kind} {Environment.CurrentManagedThreadId}] {sb}");
         }
       }
     }

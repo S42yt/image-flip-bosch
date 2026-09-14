@@ -1,3 +1,4 @@
+using image_flip_bosch.CLI.TUI.Core;
 using image_flip_bosch.CLI.Utils;
 using image_flip_bosch.CLI.Utils.Image;
 using SharpConsoleUI;
@@ -192,7 +193,7 @@ namespace image_flip_bosch.CLI.TUI
           _items.Clear();
           _index = -1;
           _exhausted = false;
-          _previewCts?.Cancel();
+          await _previewCts?.CancelAsync()!;
           await Ws.InvokeAsync(_preview.Clear);
         }
 
