@@ -6,6 +6,7 @@
     <RootNamespace>image_flip_bosch</RootNamespace>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <ApplicationIcon>image_1789388467843071.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>
@@ -26,6 +27,10 @@
 
   <ItemGroup>
     <EditorConfigFiles Remove="C:\Users\OWU1FE\Desktop\image-flip-bosch\.editorconfig" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="image_1789388467843071.ico" />
   </ItemGroup>
 
   <ItemGroup>
