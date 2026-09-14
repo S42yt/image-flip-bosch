@@ -7,7 +7,7 @@ on:
 
 jobs:
   build-and-release:
-    runs-on: windows-latest 
+    runs-on: windows-latest # Windows-Runner, ideal für native .exe-Erstellung
     
     permissions:
       contents: write
@@ -28,17 +28,13 @@ jobs:
         run: |
           dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o ./publish
 
-      - name: Dateien in ZIP-Archiv verpacken
-        run: |
-          Compress-Archive -Path ./publish/* -DestinationPath ./bosch-image-creator-x64.zip
-
-      - name: GitHub Release erstellen und Asset hochladen
+      - name: GitHub Release erstellen und .exe hochladen
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.0.${{ github.run_number }} # Erstellt automatisch ein Tag wie v1.0.1, v1.0.2 etc.
+          tag_name: v1.0.${{ github.run_number }}
           name: Release v1.0.${{ github.run_number }}
           draft: false
           prerelease: false
-          files: ./bosch-image-creator-x64.zip
+          files: ./publish/bosch-image-creator.exe # Hier wird direkt die .exe aus dem publish-Ordner genommen
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
