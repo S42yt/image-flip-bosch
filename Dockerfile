@@ -3,7 +3,7 @@ WORKDIR /src
 COPY image-flip-bosch.csproj ./
 RUN dotnet restore image-flip-bosch.csproj
 COPY . .
-RUN dotnet publish image-flip-bosch.csproj -c Release -o /app --no-restore
+RUN dotnet publish image-flip-bosch.csproj -c Release -o /app 
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0
 WORKDIR /app
