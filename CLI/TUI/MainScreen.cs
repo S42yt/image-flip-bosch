@@ -550,7 +550,8 @@ namespace image_flip_bosch.CLI.TUI
       Meme meme = _selected;
       string? imagePath = _cache.TryGetPath(meme.Url);
       bool customDefault = _configStore.Load().ImgFlip.CustomBoxPositions;
-      MemeCreationBox[]? boxes = await new MemeCreationScreen(_ws, meme, imagePath, customDefault, _lastCaptions).ShowAsync();
+      ImgFlipConfig captionOptions = _configStore.Load().ImgFlip;
+      MemeCreationBox[]? boxes = await new MemeCreationScreen(_ws, meme, imagePath, customDefault, _lastCaptions, captionOptions.MaxFontSize).ShowAsync();
       if (boxes is null) return;
 
       _lastCaptions = boxes;
