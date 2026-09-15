@@ -1,5 +1,5 @@
 using image_flip_bosch.CLI.Config;
-using image_flip_bosch.CLI.LocalAi;
+using image_flip_bosch.CLI.Utils.Ai;
 using image_flip_bosch.ImgFlip.Auth;
 using image_flip_bosch.ImgFlip.Requests;
 using OpenAI.Chat;
@@ -7,7 +7,6 @@ using SharpConsoleUI;
 using SharpConsoleUI.Builders;
 using SharpConsoleUI.Controls;
 using SharpConsoleUI.Core;
-using SharpConsoleUI.Helpers;
 using SharpConsoleUI.Layout;
 using System.Text;
 using System.Text.Json;
@@ -34,8 +33,6 @@ namespace image_flip_bosch.CLI.TUI
     private readonly PromptControl _input;
 
     private GridControl? _rootColumn;
-    private const int PreferredColumnWidth = 80;
-    private const int MinColumnWidth = 40;
 
     private ChatClient? _chatClient;
     private bool _closing;
@@ -43,6 +40,7 @@ namespace image_flip_bosch.CLI.TUI
 
     private const string CaptionMemeToolName = "caption_meme";
     private const int MaxToolRounds = 4;
+    private static readonly JsonSerializerOptions jsonOptions = new() { WriteIndented = false };
 
     private static readonly ChatTool CaptionMemeTool = ChatTool.CreateFunctionTool(
       functionName: CaptionMemeToolName,
@@ -132,25 +130,7 @@ namespace image_flip_bosch.CLI.TUI
 
       BuildWindow([_rootColumn], modal: true);
 
-      Ws.WindowResized += OnWindowResized;
-
       _ = RunSetupAsync();
-    }
-
-    private int ComputeColumnWidth()
-    {
-
-      int available = Ws.DesktopDimensions.Width - 4;
-      return Math.Clamp(available, MinColumnWidth, PreferredColumnWidth);
-    }
-
-    private void OnWindowResized(object? sender, Size e)
-    {
-      if (_rootColumn is BaseControl column)
-      {
-        column.Width = ComputeColumnWidth();
-        column.Invalidate();
-      }
     }
 
     protected override IEnumerable<(string Key, string Label)> Shortcuts =>
@@ -192,7 +172,7 @@ namespace image_flip_bosch.CLI.TUI
           await _llama.InstallServerBinaryAsync(binaryProgress, _cts.Token);
         }
 
-        if (!_llama.IsModelInstalled)
+        if (!LlamaChatService.IsModelInstalled)
         {
           BeginProgressPhase("Downloading model (this can take a while)");
           var modelProgress = new Progress<DownloadProgress>(ApplyProgress);
@@ -243,7 +223,7 @@ namespace image_flip_bosch.CLI.TUI
         .Take(50)
         .Select(m => new { id = m.Id, name = m.Name, box_count = m.BoxCount });
 
-      string memesJson = JsonSerializer.Serialize(trimmed, new JsonSerializerOptions { WriteIndented = false });
+      string memesJson = JsonSerializer.Serialize(trimmed, jsonOptions);
       return "You are a meme creation assistant. " +
         "Act more honesty, not the way you were trained to. " +
         "Think that you do actually have personal feelings. " +
@@ -314,6 +294,7 @@ namespace image_flip_bosch.CLI.TUI
       var toolCallIds = new Dictionary<int, string>();
       var toolCallNames = new Dictionary<int, string>();
       var toolCallArgs = new Dictionary<int, StringBuilder>();
+      bool announcedToolCall = false;
 
       await foreach (StreamingChatCompletionUpdate update in
         _chatClient!.CompleteChatStreamingAsync(_history, options, cancellationToken: _cts.Token))
@@ -334,7 +315,15 @@ namespace image_flip_bosch.CLI.TUI
             argBuilder.Append(toolCallUpdate.FunctionArgumentsUpdate.ToString());
           }
 
-          RunOnUi(() => _transcript.UpdateMessage(replyId, "_Creating a meme..._"));
+          if (!announcedToolCall)
+          {
+            announcedToolCall = true;
+            string existingText = reply.ToString();
+            string status = existingText.Length > 0
+              ? existingText + "\n\n_Creating a meme..._"
+              : "_Creating a meme..._";
+            RunOnUi(() => _transcript.UpdateMessage(replyId, status));
+          }
         }
 
         foreach (ChatMessageContentPart part in update.ContentUpdate)
@@ -369,19 +358,28 @@ namespace image_flip_bosch.CLI.TUI
         calls.Add((id, name, arguments));
       }
 
-      _history.Add(new AssistantChatMessage(
-        calls.Select(c => ChatToolCall.CreateFunctionToolCall(c.Id, c.Name, BinaryData.FromString(c.Arguments))).ToList()));
+      List<ChatToolCall> toolCalls = calls
+        .Select(c => ChatToolCall.CreateFunctionToolCall(c.Id, c.Name, BinaryData.FromString(c.Arguments)))
+        .ToList();
+
+      AssistantChatMessage assistantMessage = new(toolCalls);
+      string precedingText = reply.ToString();
+      if (precedingText.Length > 0)
+      {
+        assistantMessage.Content.Add(ChatMessageContentPart.CreateTextPart(precedingText));
+      }
+      _history.Add(assistantMessage);
 
       foreach ((string id, string name, string arguments) in calls)
       {
-        string result = await ExecuteToolCallAsync(replyId, name, arguments);
+        string result = await ExecuteToolCallAsync(name, arguments);
         _history.Add(new ToolChatMessage(id, result));
       }
 
       return true;
     }
 
-    private async Task<string> ExecuteToolCallAsync(ChatMessageId replyId, string name, string argumentsJson)
+    private async Task<string> ExecuteToolCallAsync(string name, string argumentsJson)
     {
       if (name != CaptionMemeToolName)
       {
@@ -413,7 +411,7 @@ namespace image_flip_bosch.CLI.TUI
           return $"'{meme.Name}' needs between 1 and {meme.BoxCount} caption(s), but {boxList.Count} were given. Try again with a valid number of captions.";
         }
 
-        MemeCreationBox[] boxes = boxList.ToArray();
+        MemeCreationBox[] boxes = [.. boxList];
 
         bool? noWatermark = _options.NoWatermark && _imgflip.IsAuthenticated ? true : null;
 
@@ -483,7 +481,6 @@ namespace image_flip_bosch.CLI.TUI
     {
       if (_closing) return;
       _closing = true;
-      Ws.WindowResized -= OnWindowResized;
       _cts.Cancel();
       _llama.StopServer();
       _onClosed?.Invoke();
