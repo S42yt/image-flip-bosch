@@ -41,8 +41,8 @@ namespace image_flip_bosch.CLI
         case > 0 when args[0] == "logout":
           Logger.Info(setup.Clear() ? "Imgflip credentials removed." : "No credentials stored.");
           return 0;
-        case > 0 when args[0] == "login" && !setup.PromptInteractive() && !setup.PromptInteractive():
-          return 1;
+        case > 0 when args[0] == "login":
+          return setup.PromptInteractive(verify: new ImgFlipApi().VerifyCredentials) ? 0 : 1;
       }
 
       await using ImageCache cache = new(
@@ -56,7 +56,6 @@ namespace image_flip_bosch.CLI
       Logger.Info($"Sixel: supported={sixel.Supported} cell={sixel.CellWidth}x{sixel.CellHeight}");
 
       Logger.UseFile(ConfigPaths.File("app.log"));
-      Logger.MinimumLevel = showDebug ? LogLevel.Debug : LogLevel.Info;
 
       ConsoleWindowSystem ws = new(
         new SixelDriver(new NetConsoleDriver(RenderMode.Buffer), sixel),

@@ -307,7 +307,7 @@ namespace image_flip_bosch.CLI.TUI
     }
 
     private void OpenSettings() =>
-      new SettingsScreen(_ws, _configStore, _setup, () =>
+      new SettingsScreen(_ws, _configStore, _setup, _imgflip, () =>
       {
         Say(_setup.IsConfigured ? $"Logged in as {_setup.Username}" : "No Imgflip login");
         _feed = new MemeFeedClient(_configStore.Load().Feed.BaseUrl);

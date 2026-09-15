@@ -1,5 +1,6 @@
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
+COPY Directory.Build.props ./
 COPY Backend/Backend.csproj Backend/
 RUN dotnet restore Backend/Backend.csproj
 COPY Backend/ Backend/

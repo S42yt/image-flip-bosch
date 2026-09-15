@@ -49,7 +49,7 @@ namespace image_flip_bosch.CLI.Config.ImgFlip
 
     public ImgFlipConfig Options => _config.Load().ImgFlip;
 
-    public bool PromptInteractive(TextReader? input = null, TextWriter? output = null)
+    public bool PromptInteractive(TextReader? input = null, TextWriter? output = null, Func<string, string, Task<bool>>? verify = null)
     {
       TextWriter o = output ?? Console.Out;
 
@@ -70,6 +70,27 @@ namespace image_flip_bosch.CLI.Config.ImgFlip
       {
         o.WriteLine("Cancelled.");
         return false;
+      }
+
+      if (verify is not null)
+      {
+        o.Write("Checking with Imgflip... ");
+        bool ok;
+        try
+        {
+          ok = verify(username, password).GetAwaiter().GetResult();
+        }
+        catch (Exception ex)
+        {
+          o.WriteLine($"could not reach Imgflip: {ex.Message}");
+          return false;
+        }
+        if (!ok)
+        {
+          o.WriteLine("rejected. Wrong username or password, nothing saved.");
+          return false;
+        }
+        o.WriteLine("ok.");
       }
 
       Set(username, password);

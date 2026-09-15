@@ -1,5 +1,6 @@
 using image_flip_bosch.CLI.Config;
 using image_flip_bosch.CLI.Config.ImgFlip;
+using image_flip_bosch.ImgFlip.Auth;
 using SharpConsoleUI;
 using SharpConsoleUI.Builders;
 using SharpConsoleUI.Controls;
@@ -24,12 +25,15 @@ namespace image_flip_bosch.CLI.TUI
     private readonly PromptControl _feedUrl;
     private readonly PromptControl _proxy;
     private readonly MarkupControl _account;
+    private readonly ImgflipSession _imgflip;
+    private bool _verifying;
 
-    public SettingsScreen(ConsoleWindowSystem ws, ConfigStore<AppConfig> configStore, ImgFlipSetup setup, Action? onSaved = null)
+    public SettingsScreen(ConsoleWindowSystem ws, ConfigStore<AppConfig> configStore, ImgFlipSetup setup, ImgflipSession imgflip, Action? onSaved = null)
       : base(ws, "Settings")
     {
       _configStore = configStore;
       _setup = setup;
+      _imgflip = imgflip;
       _onSaved = onSaved;
 
       AppConfig config = configStore.Load();
@@ -206,10 +210,10 @@ namespace image_flip_bosch.CLI.TUI
 
       if (username.Length > 0 && password.Length > 0)
       {
-        _setup.Set(username, password);
-        _password.Input = string.Empty;
+        _ = VerifyAndStoreAsync(username, password, proxyChanged);
+        return;
       }
-      else if (username.Length > 0 && username != _setup.Username)
+      if (username.Length > 0 && username != _setup.Username)
       {
         Say("Enter the password to change the username", NotificationSeverity.Warning);
         return;
@@ -218,6 +222,38 @@ namespace image_flip_bosch.CLI.TUI
       _account.SetContent([AccountLine()]);
       Say(proxyChanged ? "Settings saved, feed uses the new proxy now, restart for Imgflip" : "Settings saved", NotificationSeverity.Success);
       _onSaved?.Invoke();
+    }
+
+    private async Task VerifyAndStoreAsync(string username, string password, bool proxyChanged)
+    {
+      if (_verifying) return;
+      _verifying = true;
+      Say("Checking login with Imgflip...");
+      try
+      {
+        bool ok = await _imgflip.VerifyCredentials(username, password);
+        if (!ok)
+        {
+          Say("Imgflip rejected username or password, login not saved", NotificationSeverity.Danger);
+          return;
+        }
+        _setup.Set(username, password);
+        await Ws.InvokeAsync(() =>
+        {
+          _password.Input = string.Empty;
+          _account.SetContent([AccountLine()]);
+        });
+        Say(proxyChanged ? $"Logged in as {username}, restart for the proxy to apply to Imgflip" : $"Logged in as {username}", NotificationSeverity.Success);
+        _onSaved?.Invoke();
+      }
+      catch (Exception ex)
+      {
+        Say($"Could not reach Imgflip: {ex.Message}", NotificationSeverity.Danger);
+      }
+      finally
+      {
+        _verifying = false;
+      }
     }
 
     private void RemoveCredentials()

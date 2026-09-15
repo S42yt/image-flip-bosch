@@ -8,11 +8,16 @@ namespace image_flip_bosch.ImgFlip
 {
   public class ImgFlipApi : IImgFlipApi
   {
-    private readonly HttpClient _httpClient = new()
+    private readonly HttpClient _httpClient;
+
+    public ImgFlipApi(Uri? baseAddress = null)
     {
-      BaseAddress = new Uri("https://api.imgflip.com/"),
-      Timeout = TimeSpan.FromSeconds(15),
-    };
+      _httpClient = new HttpClient
+      {
+        BaseAddress = baseAddress ?? new Uri("https://api.imgflip.com/"),
+        Timeout = TimeSpan.FromSeconds(15),
+      };
+    }
 
     private static string Flag(bool value) => value ? "1" : "0";
 
@@ -153,6 +158,27 @@ namespace image_flip_bosch.ImgFlip
 
       ResponseImgFlipData data = await FetchData("search_memes", parameters);
       return data.Memes ?? throw new ImgFlipException("search_memes returned no memes");
+    }
+
+    public async Task<bool> VerifyCredentials(string username, string password)
+    {
+      List<KeyValuePair<string, string>> parameters = Auth(username, password);
+      parameters.Add(new KeyValuePair<string, string>("template_id", "0"));
+      parameters.Add(new KeyValuePair<string, string>("text0", "login check"));
+      parameters.Add(new KeyValuePair<string, string>("text1", string.Empty));
+      try
+      {
+        await FetchData("caption_image", parameters);
+        return true;
+      }
+      catch (ImgFlipException ex)
+      {
+        string m = ex.Message;
+        bool credentialError = m.Contains("username", StringComparison.OrdinalIgnoreCase)
+          || m.Contains("password", StringComparison.OrdinalIgnoreCase)
+          || m.Contains("login", StringComparison.OrdinalIgnoreCase);
+        return !credentialError;
+      }
     }
 
     public async Task<Meme> GetMeme(

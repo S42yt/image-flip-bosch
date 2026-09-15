@@ -49,6 +49,8 @@ namespace image_flip_bosch.ImgFlip.Auth
 
     public void ResetPremium() => IsPremium = null;
 
+    public Task<bool> VerifyCredentials(string username, string password) => api.VerifyCredentials(username, password);
+
     public Task<Meme[]> GetMemes(EMemeTyp? type = null) => api.GetMemes(type);
 
     public Task<string> CaptionImage(string templateId, string text0, string text1, int? maxFontSize = null, bool? noWatermark = null, MemeCreationBox[]? boxes = null)

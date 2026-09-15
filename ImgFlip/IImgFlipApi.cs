@@ -35,6 +35,8 @@ namespace image_flip_bosch.ImgFlip
      * (Nur mit Premium-Plan verfügbar)
      */
     Task<Meme> GetMeme(string username, string password, string templateId);
+
+    Task<bool> VerifyCredentials(string username, string password);
     /*
      * Erstellt automatisch ein passendes Meme aus einem eingegebenen Text. 
      * Ein neuronales Netzwerk wählt die geeignete Vorlage aus den Top 2.048 Memes aus 
