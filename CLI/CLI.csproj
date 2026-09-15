@@ -22,6 +22,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Content Include="..\Assets\Fonts\*.ttf" Link="Assets\Fonts\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="JetBrains.Annotations" Version="2026.2.0" />
     <PackageReference Include="NAudio" Version="2.2.1" />
     <PackageReference Include="OpenAI" Version="2.13.0" />

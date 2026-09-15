@@ -20,6 +20,8 @@ namespace image_flip_bosch.CLI.Utils.Image
 
     private const float StrokeRatio = 0.05f;
 
+    private const int ImgflipDefaultMaxFontSize = 50;
+
     private static readonly string[] BundledFontExtensions = [".ttf", ".otf"];
 
     private static readonly (string Name, FontStyle Style)[] FontCandidates =
@@ -121,7 +123,7 @@ namespace image_flip_bosch.CLI.Utils.Image
 
 
       float limit = h * LineFillRatio;
-      if (maxFontSize is { } cap) limit = Math.Min(limit, (float)(cap * sy));
+      limit = Math.Min(limit, (float)((maxFontSize ?? ImgflipDefaultMaxFontSize) * sy));
 
       float size = Math.Max(MinFontSize, limit);
       RichTextOptions options = Options(face, size, w, center);
@@ -173,6 +175,12 @@ namespace image_flip_bosch.CLI.Utils.Image
           return _face;
         }
 
+        if (TryImpactFile(out FontFamily impactFile))
+        {
+          _face = (impactFile, FontStyle.Regular);
+          return _face;
+        }
+
         if (TryBundledFont(out FontFamily bundled))
         {
           _face = (bundled, FontStyle.Regular);
@@ -194,6 +202,31 @@ namespace image_flip_bosch.CLI.Utils.Image
 
         return _face;
       }
+    }
+
+    private static bool TryImpactFile(out FontFamily family)
+    {
+      family = default;
+      string[] candidates =
+      [
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Fonts), "impact.ttf"),
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Microsoft", "Windows", "Fonts", "impact.ttf"),
+        "/usr/share/fonts/truetype/msttcorefonts/Impact.ttf",
+        "/Library/Fonts/Impact.ttf",
+      ];
+      foreach (string path in candidates)
+      {
+        if (!File.Exists(path)) continue;
+        try
+        {
+          family = new FontCollection().Add(path);
+          return true;
+        }
+        catch (Exception)
+        {
+        }
+      }
+      return false;
     }
 
     private static bool TryBundledFont(out FontFamily family)

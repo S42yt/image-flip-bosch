@@ -58,8 +58,11 @@ namespace image_flip_bosch.CLI.TUI
     private bool _aiOpen;
     private string? _aiUrl;
     private CancellationTokenSource? _renderCts;
-    private bool _ready;
+    private readonly bool _ready;
     private bool _previewBroken;
+    private readonly bool _keepPreviousBoxes;
+    private TemplateBox?[]? _layout;
+    private bool _layoutFromImgflip;
 
     public bool CustomPositions => _customMode.Checked;
 
@@ -155,8 +158,61 @@ namespace image_flip_bosch.CLI.TUI
       body.Place(_preview, 0, 1);
 
       BuildWindow([body], modal: true);
+      _keepPreviousBoxes = previousHadPositions;
       _ready = true;
+      ApplyLayout(TemplateLayoutProbe.Cached(meme.Id));
       RenderPreview();
+      if (_layout is null) _ = LoadLayoutAsync();
+    }
+
+    private async Task LoadLayoutAsync()
+    {
+      if (!_ctx.Imgflip.IsAuthenticated)
+      {
+        Say("Login (F8) to load the real text positions from Imgflip", NotificationSeverity.Warning);
+        return;
+      }
+      Say("Loading text positions from Imgflip...");
+      try
+      {
+        TemplateBox?[]? layout = await TemplateLayoutProbe.GetAsync(_ctx.Imgflip, _ctx.Cache, _meme);
+        if (layout is null || _result.Task.IsCompleted) return;
+        await Ws.InvokeAsync(() =>
+        {
+          ApplyLayout(layout);
+          RefreshLabels();
+          RenderPreview();
+        });
+        Say(_layoutFromImgflip ? "Text positions loaded from Imgflip" : "Imgflip returned no usable positions, using estimates", _layoutFromImgflip ? NotificationSeverity.Success : NotificationSeverity.Warning);
+      }
+      catch (Exception ex)
+      {
+        Say($"Could not load text positions: {ex.Message}", NotificationSeverity.Warning);
+      }
+    }
+
+    private void ApplyLayout(TemplateBox?[]? layout)
+    {
+      if (layout is null) return;
+      _layout = layout;
+      _layoutFromImgflip = layout.Any(b => b is not null);
+      if (_keepPreviousBoxes) return;
+      for (int i = 0; i < _boxes.Count && i < layout.Length; i++)
+      {
+        if (layout[i] is not { } b) continue;
+        _boxes[i].X = b.X;
+        _boxes[i].Y = b.Y;
+        _boxes[i].Width = b.Width;
+        _boxes[i].Height = b.Height;
+        Clamp(_boxes[i]);
+      }
+    }
+
+    private Box TemplateBoxFor(int i)
+    {
+      if (_layout is not null && i < _layout.Length && _layout[i] is { } b)
+        return new Box { X = b.X, Y = b.Y, Width = b.Width, Height = b.Height, ColorHex = BoxColors[i % BoxColors.Length] };
+      return DefaultBox(i, _inputs.Count, _meme.Width, _meme.Height);
     }
 
     protected override string HeaderCenter => $"Caption: {_meme.Name}";
@@ -369,7 +425,7 @@ namespace image_flip_bosch.CLI.TUI
       Box b = _boxes[i];
       string marker = i == _active ? "▶" : " ";
       return !CustomPositions
-        ? $" [{b.ColorHex}]{marker} ■[/] {Chrome.MutedText($"{Label(i, _boxes.Count)}  template position")}"
+        ? $" [{b.ColorHex}]{marker} ■[/] {Chrome.MutedText($"{Label(i, _boxes.Count)}  {(_layoutFromImgflip ? "imgflip position" : "estimated position")}")}"
         : $" [{b.ColorHex}]{marker} ■[/] {Chrome.MutedText($"{Label(i, _boxes.Count)}  x{b.X} y{b.Y}  {b.Width}x{b.Height}")}";
     }
 
@@ -418,7 +474,7 @@ namespace image_flip_bosch.CLI.TUI
         if (text.Length == 0) continue;
         if (uppercase) text = text.ToUpperInvariant();
 
-        Box source = CustomPositions ? _boxes[i] : DefaultBox(i, _inputs.Count, _meme.Width, _meme.Height);
+        Box source = CustomPositions ? _boxes[i] : TemplateBoxFor(i);
         areas.Add(new MemeTextArea(text, source.X, source.Y, source.Width, source.Height));
       }
       return areas;

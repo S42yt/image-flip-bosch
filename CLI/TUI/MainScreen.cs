@@ -546,16 +546,9 @@ namespace image_flip_bosch.CLI.TUI
       if (_selected is null) { Say("Select a template first", NotificationSeverity.Warning); return; }
       Meme meme = _selected;
       string? imagePath = _cache.TryGetPath(meme.Url);
-<<<<<<< HEAD
       ImgFlipConfig options = _configStore.Load().ImgFlip;
       CreationContext ctx = new(_imgflip, options, _allMemes, _ai, _cache, _feed, _setup.IsConfigured ? _setup.Username : null);
-      MemeCreationResult result = await new MemeCreationScreen(_ws, meme, imagePath, options.CustomBoxPositions, ctx, _lastCaptions).ShowAsync(focusAi);
-=======
-      bool customDefault = _configStore.Load().ImgFlip.CustomBoxPositions;
-      ImgFlipConfig captionOptions = _configStore.Load().ImgFlip;
-      MemeCreationBox[]? boxes = await new MemeCreationScreen(_ws, meme, imagePath, customDefault, _lastCaptions, captionOptions.MaxFontSize).ShowAsync();
-      if (boxes is null) return;
->>>>>>> b9718d1f9a85df6360a457e40a43af543610d133
+      MemeCreationResult result = await new MemeCreationScreen(_ws, meme, imagePath, options.CustomBoxPositions, ctx, _lastCaptions, options.MaxFontSize).ShowAsync(focusAi);
 
       if (result.Boxes is not null)
       {
