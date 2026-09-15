@@ -11,9 +11,6 @@ using SharpConsoleUI.Builders;
 using SharpConsoleUI.Controls;
 using SharpConsoleUI.Core;
 using SharpConsoleUI.Layout;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.PixelFormats;
-using SixLabors.ImageSharp.Processing;
 
 namespace image_flip_bosch.CLI.TUI
 {
@@ -40,13 +37,17 @@ namespace image_flip_bosch.CLI.TUI
     }
 
     private static readonly string[] BoxColors = ["#FF3B30", "#34C759", "#0A84FF", "#FFD60A", "#FF9F0A", "#BF5AF2", "#5AC8FA", "#FF2D55"];
-
+    private const int WordDelayMs = 60;
+    private const int IdleDelayMs = 400;
     private readonly Meme _meme;
     private readonly string? _imagePath;
     private readonly CreationContext _ctx;
+    private readonly int? _maxFontSize;
     private readonly List<PromptControl> _inputs = [];
     private readonly List<Box> _boxes = [];
     private readonly List<MarkupControl> _boxLabels = [];
+    private readonly string[] _committed;
+    private readonly string[] _typed;
     private readonly ImagePreview _preview;
     private readonly TaskCompletionSource<MemeCreationResult> _result = new();
     private readonly CheckboxControl _customMode;
@@ -57,16 +58,21 @@ namespace image_flip_bosch.CLI.TUI
     private bool _aiOpen;
     private string? _aiUrl;
     private CancellationTokenSource? _renderCts;
+    private bool _ready;
+    private bool _previewBroken;
 
     public bool CustomPositions => _customMode.Checked;
 
-    public MemeCreationScreen(ConsoleWindowSystem ws, Meme meme, string? imagePath, bool customPositions, CreationContext ctx, MemeCreationBox[]? previous = null)
+    public MemeCreationScreen(ConsoleWindowSystem ws, Meme meme, string? imagePath, bool customPositions, CreationContext ctx, MemeCreationBox[]? previous = null, int? maxFontSize = null)
       : base(ws, "Meme Creation")
     {
       _meme = meme;
       _imagePath = imagePath;
       _ctx = ctx;
+      _maxFontSize = maxFontSize;
       int count = Math.Clamp(meme.BoxCount, 1, 20);
+      _committed = new string[count];
+      _typed = new string[count];
 
       bool previousHadPositions = previous is not null && previous.Any(b => b.X is not null);
       _customMode = Controls.Checkbox("Custom box positions (otherwise ImgFlip's template layout is used)")
@@ -99,7 +105,7 @@ namespace image_flip_bosch.CLI.TUI
       List<IWindowControl> column =
       [
         Controls.Markup(string.Empty).Build(),
-        Controls.Markup($" {Chrome.HighlightText(meme.Name)} {Chrome.MutedText($"{meme.Width}x{meme.Height}")}").Build(),
+        Controls.Markup($" {Chrome.HighlightText(meme.Name)} {Chrome.MutedText($"{meme.Width}x{meme.Height}  font: {ImageTextLiveUpdate.FontName}")}").Build(),
         Controls.Markup(string.Empty).Build(),
       ];
 
@@ -113,10 +119,12 @@ namespace image_flip_bosch.CLI.TUI
           .WithPlaceholder(count > 1 ? "leave empty to skip" : "text")
           .UnfocusOnEnter(false)
           .OnEntered((_, _) => Advance(index))
-          .OnInputChanged((_, _) => SetActive(index))
+          .OnInputChanged((sender, _) => InputChanged(index, sender))
           .Build();
         if (previous is not null && i < previous.Length)
           prompt.Input = previous[i].Text;
+        _committed[index] = CommittedText(prompt.Input);
+        _typed[index] = prompt.Input;
         _inputs.Add(prompt);
 
         column.Add(label);
@@ -147,7 +155,8 @@ namespace image_flip_bosch.CLI.TUI
       body.Place(_preview, 0, 1);
 
       BuildWindow([body], modal: true);
-      RenderOverlay();
+      _ready = true;
+      RenderPreview();
     }
 
     protected override string HeaderCenter => $"Caption: {_meme.Name}";
@@ -170,7 +179,7 @@ namespace image_flip_bosch.CLI.TUI
     {
       _hint.SetContent([HintText()]);
       RefreshLabels();
-      RenderOverlay();
+      Flush();
     }
 
     public Task<MemeCreationResult> ShowAsync(bool openAi = false)
@@ -219,7 +228,7 @@ namespace image_flip_bosch.CLI.TUI
       Clamp(box);
       e.Handled = true;
       RefreshLabels();
-      RenderOverlay();
+      RenderPreview();
     }
 
     protected override void OnChromeChanged() => RefreshLabels();
@@ -256,6 +265,58 @@ namespace image_flip_bosch.CLI.TUI
       }
     }
 
+    private void InputChanged(int index, object? sender)
+    {
+      if (!_ready) return;
+
+      bool activeChanged = index != _active;
+      if (activeChanged)
+      {
+        _active = index;
+        RefreshLabels();
+      }
+
+      bool textChanged = false;
+      bool wordChanged = false;
+
+      if (sender is PromptControl prompt)
+      {
+        string text = prompt.Input;
+        textChanged = text != _typed[index];
+        _typed[index] = text;
+
+        string committed = CommittedText(text);
+        if (committed != _committed[index])
+        {
+          _committed[index] = committed;
+          wordChanged = true;
+        }
+      }
+
+      if (!activeChanged && !textChanged) return;
+      RenderPreview(activeChanged || wordChanged ? WordDelayMs : IdleDelayMs);
+    }
+
+   
+    private static string CommittedText(string text)
+    {
+      for (int i = text.Length - 1; i >= 0; i--)
+        if (char.IsWhiteSpace(text[i]))
+          return text[..(i + 1)];
+      return string.Empty;
+    }
+
+    private void Flush()
+    {
+      if (!_ready) return;
+      for (int i = 0; i < _inputs.Count; i++)
+      {
+        _typed[i] = _inputs[i].Input;
+        _committed[i] = CommittedText(_typed[i]);
+      }
+      RenderPreview();
+    }
+
     private static string Label(int index, int count) => count switch
     {
       1 => "Text",
@@ -274,24 +335,24 @@ namespace image_flip_bosch.CLI.TUI
         case 1:
           return new Box { X = marginX, Y = marginY, Width = width - 2 * marginX, Height = height / 4, ColorHex = color };
         case 2:
-        {
-          int h = height / 4;
-          return index == 0
-            ? new Box { X = marginX, Y = marginY, Width = width - 2 * marginX, Height = h, ColorHex = color }
-            : new Box { X = marginX, Y = height - h - marginY, Width = width - 2 * marginX, Height = h, ColorHex = color };
-        }
-        default:
-        {
-          int band = height / count;
-          return new Box
           {
-            X = marginX,
-            Y = index * band + marginY,
-            Width = width - 2 * marginX,
-            Height = Math.Max(10, band - 2 * marginY),
-            ColorHex = color,
-          };
-        }
+            int h = height / 4;
+            return index == 0
+              ? new Box { X = marginX, Y = marginY, Width = width - 2 * marginX, Height = h, ColorHex = color }
+              : new Box { X = marginX, Y = height - h - marginY, Width = width - 2 * marginX, Height = h, ColorHex = color };
+          }
+        default:
+          {
+            int band = height / count;
+            return new Box
+            {
+              X = marginX,
+              Y = index * band + marginY,
+              Width = width - 2 * marginX,
+              Height = Math.Max(10, band - 2 * marginY),
+              ColorHex = color,
+            };
+          }
       }
     }
 
@@ -318,14 +379,6 @@ namespace image_flip_bosch.CLI.TUI
         _boxLabels[i].SetContent([BoxLabel(i)]);
     }
 
-    private void SetActive(int index)
-    {
-      if (index == _active) return;
-      _active = index;
-      RefreshLabels();
-      RenderOverlay();
-    }
-
     private void CycleFocus(int direction)
     {
       int stops = _inputs.Count + 1;
@@ -340,7 +393,12 @@ namespace image_flip_bosch.CLI.TUI
     {
       index = (index + _inputs.Count) % _inputs.Count;
       Window.FocusControl(_inputs[index]);
-      SetActive(index);
+      if (index != _active)
+      {
+        _active = index;
+        RefreshLabels();
+      }
+      Flush();
     }
 
     private void Advance(int index)
@@ -349,110 +407,70 @@ namespace image_flip_bosch.CLI.TUI
       else Submit();
     }
 
-    private void RenderOverlay()
+    private List<MemeTextArea> TextAreas()
     {
-      if (_imagePath is null || _aiUrl is not null) return;
+      bool uppercase = !CustomPositions && _inputs.Count <= 2;
 
-      _renderCts?.Cancel();
+      List<MemeTextArea> areas = [];
+      for (int i = 0; i < _inputs.Count; i++)
+      {
+        string text = _inputs[i].Input.Trim();
+        if (text.Length == 0) continue;
+        if (uppercase) text = text.ToUpperInvariant();
+
+        Box source = CustomPositions ? _boxes[i] : DefaultBox(i, _inputs.Count, _meme.Width, _meme.Height);
+        areas.Add(new MemeTextArea(text, source.X, source.Y, source.Width, source.Height));
+      }
+      return areas;
+    }
+
+    private void CancelRender()
+    {
+      CancellationTokenSource? previous = _renderCts;
+      _renderCts = null;
+      if (previous is null) return;
+      previous.Cancel();
+      previous.Dispose();
+    }
+
+    private void RenderPreview(int delayMs = WordDelayMs)
+    {
+      if (_imagePath is null) return;
+
+      CancelRender();
       CancellationTokenSource cts = new();
       _renderCts = cts;
-      List<(int x, int y, int w, int h, string color, bool active)> snapshot = CustomPositions
-        ? _boxes.Select((b, i) => (b.X, b.Y, b.Width, b.Height, b.ColorHex, i == _active)).ToList()
+
+      List<MemeBoxOverlay> boxes = CustomPositions
+        ? [.. _boxes.Select((b, i) => new MemeBoxOverlay(b.X, b.Y, b.Width, b.Height, b.ColorHex, i == _active))]
         : [];
+      List<MemeTextArea> texts = TextAreas();
+      string path = _imagePath;
+      int width = _meme.Width;
+      int height = _meme.Height;
+      int? maxFont = _maxFontSize;
 
       _ = Task.Run(async () =>
       {
         try
         {
-          await Task.Delay(60, cts.Token);
-          byte[] png = ComposeOverlay(_imagePath, _meme.Width, _meme.Height, snapshot);
+          await Task.Delay(delayMs, cts.Token);
+          byte[] png = ImageTextLiveUpdate.Compose(path, width, height, texts, boxes, maxFont);
           if (cts.Token.IsCancellationRequested) return;
           await Ws.InvokeAsync(() => _preview.SetImage(png));
         }
         catch (OperationCanceledException) { }
+        catch (ObjectDisposedException) { }
         catch (Exception ex)
         {
+          if (_previewBroken) return;
+          _previewBroken = true;
           Say($"Preview failed: {ex.Message}", NotificationSeverity.Danger);
         }
       }, cts.Token);
     }
 
-    private static byte[] ComposeOverlay(string path, int templateW, int templateH, List<(int x, int y, int w, int h, string color, bool active)> boxes)
-    {
-      using var img = SixLabors.ImageSharp.Image.Load<Rgba32>(path);
-      const int maxSide = 900;
-      if (img.Width > maxSide || img.Height > maxSide)
-      {
-        double s = Math.Min((double)maxSide / img.Width, (double)maxSide / img.Height);
-        img.Mutate(x => x.Resize((int)(img.Width * s), (int)(img.Height * s)));
-      }
-
-      double sx = (double)img.Width / Math.Max(1, templateW);
-      double sy = (double)img.Height / Math.Max(1, templateH);
-
-      foreach ((int bx, int by, int bw, int bh, string colorHex, bool active) in boxes)
-      {
-        Rgba32 color = HexToRgba(colorHex);
-        int x0 = (int)(bx * sx), y0 = (int)(by * sy);
-        int x1 = (int)((bx + bw) * sx) - 1, y1 = (int)((by + bh) * sy) - 1;
-        int thickness = active ? 4 : 2;
-
-        FillRect(img, x0, y0, x1, y1, new Rgba32(color.R, color.G, color.B, active ? (byte)70 : (byte)40));
-        for (int t = 0; t < thickness; t++)
-          Outline(img, x0 + t, y0 + t, x1 - t, y1 - t, color);
-      }
-
-      using MemoryStream ms = new();
-      img.SaveAsPng(ms);
-      return ms.ToArray();
-    }
-
-    private static Rgba32 HexToRgba(string hex)
-    {
-      hex = hex.TrimStart('#');
-      byte r = Convert.ToByte(hex[..2], 16);
-      byte g = Convert.ToByte(hex.Substring(2, 2), 16);
-      byte b = Convert.ToByte(hex.Substring(4, 2), 16);
-      return new Rgba32(r, g, b, 255);
-    }
-
-    private static void FillRect(Image<Rgba32> img, int x0, int y0, int x1, int y1, Rgba32 tint)
-    {
-      x0 = Math.Clamp(x0, 0, img.Width - 1); x1 = Math.Clamp(x1, 0, img.Width - 1);
-      y0 = Math.Clamp(y0, 0, img.Height - 1); y1 = Math.Clamp(y1, 0, img.Height - 1);
-      float a = tint.A / 255f;
-      img.ProcessPixelRows(accessor =>
-      {
-        for (int y = y0; y <= y1; y++)
-        {
-          Span<Rgba32> row = accessor.GetRowSpan(y);
-          for (int x = x0; x <= x1; x++)
-          {
-            Rgba32 p = row[x];
-            row[x] = new Rgba32(
-              (byte)(p.R + (tint.R - p.R) * a),
-              (byte)(p.G + (tint.G - p.G) * a),
-              (byte)(p.B + (tint.B - p.B) * a),
-              255);
-          }
-        }
-      });
-    }
-
-    private static void Outline(Image<Rgba32> img, int x0, int y0, int x1, int y1, Rgba32 color)
-    {
-      if (x1 < x0 || y1 < y0) return;
-      for (int x = Math.Max(0, x0); x <= Math.Min(img.Width - 1, x1); x++)
-      {
-        if (y0 >= 0 && y0 < img.Height) img[x, y0] = color;
-        if (y1 >= 0 && y1 < img.Height) img[x, y1] = color;
-      }
-      for (int y = Math.Max(0, y0); y <= Math.Min(img.Height - 1, y1); y++)
-      {
-        if (x0 >= 0 && x0 < img.Width) img[x0, y] = color;
-        if (x1 >= 0 && x1 < img.Width) img[x1, y] = color;
-      }
-    }
+    
 
     private MemeCreationBox[] Collect()
     {
