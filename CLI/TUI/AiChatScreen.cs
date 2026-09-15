@@ -20,22 +20,6 @@ namespace image_flip_bosch.CLI.TUI
 
   internal sealed class AiChatScreen : NanoScreen
   {
-    private const string CaptionMemeToolName = "caption_meme";
-    private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = false };
-
-    private static readonly ChatTool CaptionMemeTool = ChatTool.CreateFunctionTool(
-      functionName: CaptionMemeToolName,
-      functionDescription: "Create the meme by putting captions on the template the user has open. Call it once per request. Afterwards tell the user the meme is ready.",
-      functionParameters: BinaryData.FromString("""
-      {
-        "type": "object",
-        "properties": {
-          "captions": { "type": "array", "items": { "type": "string" }, "description": "One caption per text box of the current template, in order. At least 1, at most box_count." },
-          "meme_id": { "type": "string", "description": "Only set this if the user explicitly asked for a different template from the list. Leave it out to use the current one." }
-        },
-        "required": ["captions"]
-      }
-      """));
 
     private readonly Meme _meme;
     private readonly CreationContext _ctx;
@@ -216,20 +200,6 @@ namespace image_flip_bosch.CLI.TUI
       });
     }
 
-    private string BuildSystemPrompt()
-    {
-      var others = _ctx.Memes
-        .Where(m => m.Id != _meme.Id)
-        .Take(40)
-        .Select(m => new { id = m.Id, name = m.Name, box_count = m.BoxCount });
-      var current = new { id = _meme.Id, name = _meme.Name, box_count = _meme.BoxCount };
-      return "You are a meme caption assistant inside a terminal app. Keep answers short and punchy. " +
-        $"The user has this template open: {JsonSerializer.Serialize(current, JsonOptions)}. " +
-        "Always caption this template. Never switch templates unless the user explicitly names another one. " +
-        "When the user wants a meme, call caption_meme with one caption per text box. " +
-        "Other templates, only for explicit requests: " + JsonSerializer.Serialize(others, JsonOptions);
-    }
-
     private void RestoreTranscript()
     {
       foreach (ChatMessage m in _history)
@@ -238,7 +208,12 @@ namespace image_flip_bosch.CLI.TUI
         switch (m)
         {
           case UserChatMessage: AddMessage(ChatRole.User, ChatMarkup.Render(text), "You"); break;
-          case AssistantChatMessage when text.Length > 0: AddMessage(ChatRole.Assistant, ChatMarkup.Render(text), "AI"); break;
+          case AssistantChatMessage when text.Length > 0:
+            string shown;
+            try { shown = ParseReply(text).Reply; }
+            catch (JsonException) { shown = text; }
+            AddMessage(ChatRole.Assistant, ChatMarkup.Render(shown), "AI");
+            break;
         }
       }
       if (_transcript.MessageIds.Count == 0)
@@ -306,6 +281,54 @@ namespace image_flip_bosch.CLI.TUI
       });
     }
 
+    private ChatResponseFormat ReplyFormat()
+    {
+      int n = Math.Clamp(_meme.BoxCount, 1, 20);
+      string schema = $$"""
+      {
+        "type": "object",
+        "properties": {
+          "reply": { "type": "string", "description": "Short message to the user, one or two sentences." },
+          "create_meme": { "type": "boolean", "description": "true when the user gave a topic or asked for a meme, false only for small talk or questions about the app." },
+          "captions": {
+            "type": "array",
+            "items": { "type": "string" },
+            "minItems": {{n}},
+            "maxItems": {{n}},
+            "description": "Exactly {{n}} captions, one per text box in order. Empty strings when create_meme is false."
+          }
+        },
+        "required": ["reply", "create_meme", "captions"],
+        "additionalProperties": false
+      }
+      """;
+      return ChatResponseFormat.CreateJsonSchemaFormat("meme_reply", BinaryData.FromString(schema), jsonSchemaIsStrict: true);
+    }
+
+    private string BuildSystemPrompt()
+    {
+      string boxes = string.Join(", ", Enumerable.Range(1, Math.Clamp(_meme.BoxCount, 1, 20)).Select(i => $"box {i}"));
+      return "You write meme captions inside a terminal app. " +
+        $"The template is fixed: \"{_meme.Name}\" with {_meme.BoxCount} text boxes ({boxes}). It cannot be changed, never ask which template to use, never ask questions back. " +
+        "Whenever the user gives a topic, a joke, a mood or asks for a meme, set create_meme to true and fill every caption with short, punchy, funny text that fits the template's usual format. " +
+        "Set create_meme to false only for small talk or questions that clearly do not want a meme. " +
+        "Keep reply to one or two sentences and never repeat the captions in reply.";
+    }
+
+    private sealed record ModelReply(string Reply, bool CreateMeme, string[] Captions);
+
+    private static ModelReply ParseReply(string json)
+    {
+      using JsonDocument doc = JsonDocument.Parse(json);
+      JsonElement root = doc.RootElement;
+      string reply = root.TryGetProperty("reply", out JsonElement r) ? r.GetString() ?? string.Empty : string.Empty;
+      bool create = root.TryGetProperty("create_meme", out JsonElement c) && c.ValueKind == JsonValueKind.True;
+      string[] captions = root.TryGetProperty("captions", out JsonElement caps) && caps.ValueKind == JsonValueKind.Array
+        ? caps.EnumerateArray().Select(e => (e.GetString() ?? string.Empty).Trim()).ToArray()
+        : [];
+      return new ModelReply(reply, create, captions);
+    }
+
     private async Task SendAsync()
     {
       if (!_ctx.Ai.IsReady || _busy) return;
@@ -317,7 +340,6 @@ namespace image_flip_bosch.CLI.TUI
       _input.IsEnabled = false;
       _history.Add(new UserChatMessage(text));
       ChatMessageId replyId = default;
-      bool firstToken = true;
       RunOnUi(() =>
       {
         AddMessage(ChatRole.User, ChatMarkup.Render(text), "You");
@@ -327,26 +349,30 @@ namespace image_flip_bosch.CLI.TUI
 
       try
       {
-        await _ctx.Ai.ChatAsync(
-          _history,
-          CaptionMemeTool,
-          ExecuteToolAsync,
-          full => RunOnUi(() =>
-          {
-            firstToken = false;
-            _transcript.UpdateMessage(replyId, ChatMarkup.Render(full));
-          }),
-          _ => RunOnUi(() =>
-          {
-            if (firstToken) _transcript.UpdateMessage(replyId, Chrome.MutedText("captioning..."));
-            _transcript.SetStatus(replyId, "creating meme on Imgflip...", NotificationSeverity.Info);
-          }),
-          _cts.Token);
-        RunOnUi(() =>
+        string json = await _ctx.Ai.CompleteAsync(_history, ReplyFormat(), _cts.Token);
+        ModelReply reply;
+        try
         {
-          _transcript.ClearStatus(replyId);
-          if (firstToken) _transcript.UpdateMessage(replyId, Chrome.MutedText("done"));
-        });
+          reply = ParseReply(json);
+        }
+        catch (JsonException)
+        {
+          reply = new ModelReply(json, false, []);
+        }
+
+        RunOnUi(() => _transcript.UpdateMessage(replyId, ChatMarkup.Render(reply.Reply.Length > 0 ? reply.Reply : "(no reply)")));
+
+        bool hasCaptions = reply.Captions.Any(c => c.Length > 0);
+        if (reply.CreateMeme && hasCaptions)
+        {
+          RunOnUi(() => _transcript.SetStatus(replyId, "creating meme on Imgflip...", NotificationSeverity.Info));
+          await CreateMemeAsync(reply.Captions);
+          RunOnUi(() => _transcript.ClearStatus(replyId));
+        }
+        else if (reply.CreateMeme)
+        {
+          RunOnUi(() => AddMessage(ChatRole.Error, "The model returned empty captions. Ask again, maybe with a clearer topic."));
+        }
       }
       catch (OperationCanceledException) { }
       catch (Exception ex)
@@ -365,64 +391,52 @@ namespace image_flip_bosch.CLI.TUI
       }
     }
 
-    private async Task<string> ExecuteToolAsync(string name, string argumentsJson)
+    private async Task CreateMemeAsync(string[] captions)
     {
-      if (name != CaptionMemeToolName) return $"Unknown tool '{name}'.";
+      _captions = captions;
+      _urlMeme = _meme;
 
       if (!_ctx.Imgflip.IsAuthenticated)
       {
         Say("Login (Esc, Esc, then F8) to let the AI create memes", NotificationSeverity.Warning);
-        RunOnUi(() => AddMessage(ChatRole.Error, "Not logged in to Imgflip, so I cannot create the image. Press Esc twice, then F8 to log in. The captions are still usable in the editor."));
-        return "The user is not logged in to Imgflip, no meme can be created. Answer with the captions as plain text instead.";
+        RunOnUi(() =>
+        {
+          string lines = string.Join("\n", captions.Select((c, i) => $"{Chrome.MutedText($"{i + 1}.")} {SharpConsoleUI.Parsing.MarkupParser.Escape(c)}"));
+          AddMessage(ChatRole.Tool, lines, "Captions");
+          AddMessage(ChatRole.Error, "Not logged in to Imgflip, so the image cannot be created. Esc takes the captions into the editor. Esc twice, then F8 to log in.");
+        });
+        return;
       }
 
       try
       {
-        using JsonDocument args = JsonDocument.Parse(argumentsJson);
-        string? memeId = args.RootElement.TryGetProperty("meme_id", out JsonElement idEl) ? idEl.GetString() : null;
-        Meme meme = string.IsNullOrWhiteSpace(memeId) || memeId == _meme.Id
-          ? _meme
-          : _ctx.Memes.FirstOrDefault(m => m.Id == memeId) ?? _meme;
-
-        List<string> captions = [];
-        if (args.RootElement.TryGetProperty("captions", out JsonElement captionsEl) && captionsEl.ValueKind == JsonValueKind.Array)
-          captions.AddRange(captionsEl.EnumerateArray().Select(c => c.GetString() ?? string.Empty));
-
-        if (captions.Count < 1 || captions.Count > meme.BoxCount)
-          return $"'{meme.Name}' takes between 1 and {meme.BoxCount} captions, got {captions.Count}. Call caption_meme again with the right amount.";
-
         MemeCreationBox[] boxes = captions.Select(c => new MemeCreationBox { Text = c }).ToArray();
         bool? noWatermark = _ctx.Options.NoWatermark ? true : null;
-        string url = await _ctx.Imgflip.CaptionImage(meme.Id, string.Empty, string.Empty, _ctx.Options.MaxFontSize, noWatermark, boxes);
+        string url = await _ctx.Imgflip.CaptionImage(_meme.Id, string.Empty, string.Empty, _ctx.Options.MaxFontSize, noWatermark, boxes);
 
         _url = url;
-        _urlMeme = meme;
-        _captions = [.. captions];
         RunOnUi(() =>
         {
           string lines = string.Join("\n", captions.Select((c, i) => $"{Chrome.MutedText($"{i + 1}.")} {SharpConsoleUI.Parsing.MarkupParser.Escape(c)}"));
-          ChatMessageId id = AddMessage(ChatRole.Tool, $"{Chrome.HighlightText(meme.Name)}\n{lines}", "Meme created");
+          ChatMessageId id = AddMessage(ChatRole.Tool, $"{Chrome.HighlightText(_meme.Name)}\n{lines}", "Meme created");
           _transcript.SetActions(id,
           [
             new ChatMessageAction { Id = "copy", Label = "Copy", Icon = "⎘", Variant = ChatActionVariant.Primary, OnClick = c => { _ = CopyAsync(); } },
             new ChatMessageAction { Id = "save", Label = "Save", Icon = "💾", OnClick = c => { _ = SaveAsync(); } },
             new ChatMessageAction { Id = "upload", Label = "Upload", Icon = "⇧", OnClick = c => { _ = UploadAsync(); } },
           ]);
-          _resultLine.SetContent([$" {Chrome.HighlightText(meme.Name)}  {Chrome.MutedText("F9 copy  F10 save  F12 upload  Esc back to editor")}"]);
+          _resultLine.SetContent([$" {Chrome.HighlightText(_meme.Name)}  {Chrome.MutedText("F9 copy  F10 save  F12 upload  Esc back to editor")}"]);
         });
         Say("Meme ready: F9 copy, F10 save, F12 upload", NotificationSeverity.Success);
         _ = ShowResultAsync(url);
-        return $"Meme created on template '{meme.Name}'. It is shown to the user. Tell them briefly what you did.";
       }
       catch (ImgFlipException ex)
       {
         RunOnUi(() => AddMessage(ChatRole.Error, ChatMarkup.Render($"Imgflip refused: {ex.Message}")));
-        return $"Imgflip refused the request: {ex.Message}";
       }
       catch (Exception ex)
       {
         RunOnUi(() => AddMessage(ChatRole.Error, ChatMarkup.Render($"Failed to create meme: {ex.Message}")));
-        return $"Failed to create meme: {ex.Message}";
       }
     }
 

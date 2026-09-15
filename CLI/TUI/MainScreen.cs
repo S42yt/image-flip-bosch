@@ -177,7 +177,7 @@ namespace image_flip_bosch.CLI.TUI
         _header.SetContent([HeaderText(_selected)]);
         _shortcuts.BackgroundColor = _chrome.BarBackground;
         _shortcuts.SetContent(ShortcutRows());
-        if (_contentGrid is not null) _contentGrid.GridlineColor = _chrome.Separator;
+        _contentGrid?.GridlineColor = _chrome.Separator;
         if (_lastMessage.Length > 0)
           _message.SetContent([_chrome.Status(_lastMessage, _lastSeverity)]);
         ApplyFilter(_filter.Input, keepSelection: true);
@@ -563,7 +563,7 @@ namespace image_flip_bosch.CLI.TUI
       Say("AI meme ready: F6 copy, F7 save, F12 upload", NotificationSeverity.Success);
       try
       {
-        _previewCts?.Cancel();
+       await _previewCts?.CancelAsync()!;
         string path = await _cache.GetAsync(result.AiUrl);
         await _preview.LoadWhenReadyAsync(path);
       }

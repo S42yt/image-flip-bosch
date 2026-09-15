@@ -68,7 +68,7 @@ namespace image_flip_bosch.CLI
       main.Show();
 
       int code = await Task.Run(ws.Run);
-      Logger.MinimumLevel = LogLevel.Debug;
+      Logger.MinimumLevel = LogLevel.Error;
       Logger.UseConsole();
       cache.Clear();
       return code;

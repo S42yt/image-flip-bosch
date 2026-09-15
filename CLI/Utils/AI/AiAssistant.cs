@@ -1,5 +1,4 @@
 using OpenAI.Chat;
-using System.Text;
 
 namespace image_flip_bosch.CLI.Utils.Ai
 {
@@ -7,8 +6,6 @@ namespace image_flip_bosch.CLI.Utils.Ai
 
   internal sealed class AiAssistant : IAsyncDisposable
   {
-    private const int MaxToolRounds = 4;
-
     private readonly LlamaChatService _llama = new(AppContext.BaseDirectory);
     private readonly SemaphoreSlim _setupGate = new(1, 1);
     private ChatClient? _client;
@@ -68,74 +65,14 @@ namespace image_flip_bosch.CLI.Utils.Ai
       }
     }
 
-    public async Task ChatAsync(
-      List<ChatMessage> history,
-      ChatTool tool,
-      Func<string, string, Task<string>> executeTool,
-      Action<string> onReplyText,
-      Action<string> onToolStarted,
-      CancellationToken ct)
+    public async Task<string> CompleteAsync(List<ChatMessage> history, ChatResponseFormat format, CancellationToken ct)
     {
       if (_client is null) throw new InvalidOperationException("AI assistant is not ready");
-
-      for (int round = 0; round < MaxToolRounds; round++)
-      {
-        StringBuilder reply = new();
-        Dictionary<int, string> ids = [];
-        Dictionary<int, string> names = [];
-        Dictionary<int, StringBuilder> args = [];
-        bool announced = false;
-
-        ChatCompletionOptions options = new();
-        options.Tools.Add(tool);
-
-        await foreach (StreamingChatCompletionUpdate update in _client.CompleteChatStreamingAsync(history, options, cancellationToken: ct))
-        {
-          foreach (StreamingChatToolCallUpdate call in update.ToolCallUpdates)
-          {
-            if (call.ToolCallId is not null) ids[call.Index] = call.ToolCallId;
-            if (call.FunctionName is not null) names[call.Index] = call.FunctionName;
-            if (call.FunctionArgumentsUpdate is not null)
-            {
-              if (!args.TryGetValue(call.Index, out StringBuilder? sb)) args[call.Index] = sb = new StringBuilder();
-              sb.Append(call.FunctionArgumentsUpdate.ToString());
-            }
-            if (announced) continue;
-            announced = true;
-            onToolStarted(reply.ToString());
-          }
-
-          foreach (ChatMessageContentPart part in update.ContentUpdate)
-          {
-            if (string.IsNullOrEmpty(part.Text)) continue;
-            reply.Append(part.Text);
-            onReplyText(reply.ToString());
-          }
-        }
-
-        if (names.Count == 0)
-        {
-          history.Add(new AssistantChatMessage(reply.Length > 0 ? reply.ToString() : "(no response)"));
-          return;
-        }
-
-        List<ChatToolCall> calls = names.Keys.OrderBy(i => i)
-          .Select(i => ChatToolCall.CreateFunctionToolCall(
-            ids.TryGetValue(i, out string? id) ? id : $"call_{i}",
-            names[i],
-            BinaryData.FromString(args.TryGetValue(i, out StringBuilder? a) ? a.ToString() : "{}")))
-          .ToList();
-
-        AssistantChatMessage assistant = new(calls);
-        if (reply.Length > 0) assistant.Content.Add(ChatMessageContentPart.CreateTextPart(reply.ToString()));
-        history.Add(assistant);
-
-        foreach (ChatToolCall call in calls)
-        {
-          string result = await executeTool(call.FunctionName, call.FunctionArguments.ToString());
-          history.Add(new ToolChatMessage(call.Id, result));
-        }
-      }
+      ChatCompletionOptions options = new() { ResponseFormat = format, Temperature = 0.8f };
+      ChatCompletion completion = await _client.CompleteChatAsync(history, options, ct);
+      string text = string.Concat(completion.Content.Where(p => p.Kind == ChatMessageContentPartKind.Text).Select(p => p.Text));
+      history.Add(new AssistantChatMessage(text));
+      return text;
     }
 
     private void Set(AiState state, string text)

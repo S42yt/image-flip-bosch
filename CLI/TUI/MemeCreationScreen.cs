@@ -231,11 +231,15 @@ namespace image_flip_bosch.CLI.TUI
       try
       {
         AiChatResult r = await new AiChatScreen(Ws, _meme, _ctx, _chatHistory).ShowAsync();
-        if (r.Url is null) return;
+        if (r.Captions is not null && (r.Meme is null || ReferenceEquals(r.Meme, _meme)))
+          for (int i = 0; i < _inputs.Count && i < r.Captions.Length; i++) _inputs[i].Input = r.Captions[i];
+        if (r.Url is null)
+        {
+          if (r.Captions is not null) Say("AI captions filled in, F5 creates the meme", NotificationSeverity.Success);
+          return;
+        }
 
         _aiUrl = r.Url;
-        if (r.Captions is not null && ReferenceEquals(r.Meme, _meme))
-          for (int i = 0; i < _inputs.Count && i < r.Captions.Length; i++) _inputs[i].Input = r.Captions[i];
         Say("AI captions filled in, F5 recreates them or Esc keeps the AI meme", NotificationSeverity.Success);
         _renderCts?.Cancel();
         string path = await _ctx.Cache.GetAsync(r.Url);
