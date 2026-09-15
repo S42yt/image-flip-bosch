@@ -1,6 +1,7 @@
 using image_flip_bosch.CLI.Config;
 using image_flip_bosch.CLI.Config.ImgFlip;
 using image_flip_bosch.CLI.TUI.Core;
+using image_flip_bosch.CLI.Utils.Ai;
 using image_flip_bosch.CLI.Utils.Image;
 using image_flip_bosch.CLI.Utils.Logger;
 using image_flip_bosch.CLI.Utils.MemeFeed;
@@ -31,6 +32,7 @@ namespace image_flip_bosch.CLI.TUI
     private readonly ConfigStore<AppConfig> _configStore;
     private readonly ImgFlipSetup _setup;
     private MemeFeedClient _feed;
+    private readonly AiAssistant _ai = new();
 
     private readonly MarkupControl _header;
     private readonly PromptControl _filter;
@@ -212,7 +214,7 @@ namespace image_flip_bosch.CLI.TUI
     private List<string> ShortcutRows() =>
     [
       _chrome.Key("F5", "Caption") + _chrome.Key("F6", "Copy image") + _chrome.Key("F7", "Save") + _chrome.Key("F8", "Settings") + _chrome.Key("F10", "Feed") + _chrome.Key("F12", "Upload") + (GifsAvailable ? _chrome.Key("F2", GifMode ? "Images" : "GIFs") : string.Empty),
-      _chrome.Key("Ctrl + F1", "Open AI") + _chrome.Key("F9", "Reload") + _chrome.Key("F3", "Theme") + _chrome.Key("F1", "Help") + _chrome.Key("F4", "Exit"),
+      _chrome.Key("Ctrl+F1", "AI") + _chrome.Key("F9", "Reload") + _chrome.Key("F3", "Theme") + _chrome.Key("F1", "Help") + _chrome.Key("F4", "Exit"),
     ];
 
     private string HeaderText(Meme? meme)
@@ -232,7 +234,7 @@ namespace image_flip_bosch.CLI.TUI
     {
       switch (e.KeyInfo.Key)
       {
-        case ConsoleKey.F1 when e.KeyInfo.Modifiers.HasFlag(ConsoleModifiers.Control): OpenAIChat();
+        case ConsoleKey.F1 when e.KeyInfo.Modifiers.HasFlag(ConsoleModifiers.Control): _ = OpenCaptionsAsync(focusAi: true);
           break;
         case ConsoleKey.F1: ShowHelp();
           break;
@@ -240,7 +242,7 @@ namespace image_flip_bosch.CLI.TUI
           break;
         case ConsoleKey.F3: CycleTheme(e.KeyInfo.Modifiers.HasFlag(ConsoleModifiers.Shift));
           break;
-        case ConsoleKey.F4: _ws.Shutdown();
+        case ConsoleKey.F4: _ = _ai.DisposeAsync(); _ws.Shutdown();
           break;
         case ConsoleKey.F5: _ = OpenCaptionsAsync();
           break;
@@ -314,9 +316,6 @@ namespace image_flip_bosch.CLI.TUI
         _imgflip.ResetPremium();
         _ = RefreshPremiumAsync();
       }).Show();
-
-    private void OpenAIChat() =>
-      new AIChatScreen(_ws, _configStore, _imgflip, _allMemes).Show();
 
     private void OpenDoomScroll() =>
       new DoomScrollScreen(_ws, _cache, _feed, _setup.IsConfigured ? _setup.Username : null).Show();
@@ -543,18 +542,37 @@ namespace image_flip_bosch.CLI.TUI
       }
     }
 
-    private async Task OpenCaptionsAsync()
+    private async Task OpenCaptionsAsync(bool focusAi = false)
     {
       if (_busy) { Say("Busy", NotificationSeverity.Warning); return; }
       if (_selected is null) { Say("Select a template first", NotificationSeverity.Warning); return; }
       Meme meme = _selected;
       string? imagePath = _cache.TryGetPath(meme.Url);
-      bool customDefault = _configStore.Load().ImgFlip.CustomBoxPositions;
-      MemeCreationBox[]? boxes = await new MemeCreationScreen(_ws, meme, imagePath, customDefault, _lastCaptions).ShowAsync();
-      if (boxes is null) return;
+      ImgFlipConfig options = _configStore.Load().ImgFlip;
+      CreationContext ctx = new(_imgflip, options, _allMemes, _ai, _cache, _feed, _setup.IsConfigured ? _setup.Username : null);
+      MemeCreationResult result = await new MemeCreationScreen(_ws, meme, imagePath, options.CustomBoxPositions, ctx, _lastCaptions).ShowAsync(focusAi);
 
-      _lastCaptions = boxes;
-      await CreateMemeAsync(meme, boxes);
+      if (result.Boxes is not null)
+      {
+        _lastCaptions = result.Boxes;
+        await CreateMemeAsync(meme, result.Boxes);
+        return;
+      }
+
+      if (result.AiUrl is null) return;
+      _resultUrl = result.AiUrl;
+      RefreshHeader();
+      Say("AI meme ready: F6 copy, F7 save, F12 upload", NotificationSeverity.Success);
+      try
+      {
+        _previewCts?.Cancel();
+        string path = await _cache.GetAsync(result.AiUrl);
+        await _preview.LoadWhenReadyAsync(path);
+      }
+      catch (Exception ex)
+      {
+        Say($"Preview failed: {ex.Message}", NotificationSeverity.Danger);
+      }
     }
 
     private async Task CreateMemeAsync(Meme meme, MemeCreationBox[] boxes)

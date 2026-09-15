@@ -2,7 +2,7 @@ name: Build and Release C# App
 
 on:
   push:
-    branches: 
+    branches:
       - master
 
 jobs:
@@ -19,14 +19,19 @@ jobs:
       - name: .NET SDK einrichten
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '8.x'
+          dotnet-version: '10.x'
+
+      - name: Lokale Proxy-Konfiguration entfernen
+        run: Remove-Item nuget.config -ErrorAction SilentlyContinue
 
       - name: Abhängigkeiten wiederherstellen
-        run: dotnet restore
+        run: dotnet restore image-flip-bosch.sln
+
+      - name: Backend bauen
+        run: dotnet build Backend/Backend.csproj -c Release --no-restore
 
       - name: CLI-Projekt als Release veröffentlichen (.exe)
-        run: |
-          dotnet publish CLI/CLI.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o ./publish
+        run: dotnet publish CLI/CLI.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o ./publish
 
       - name: GitHub Release erstellen und .exe hochladen
         uses: softprops/action-gh-release@v2

@@ -23,7 +23,7 @@ namespace image_flip_bosch.CLI.TUI.Core
     private Color Info { get; init; }
     public Color Success { get; private init; }
     private Color Warning { get; init; }
-    private Color Danger { get; init; }
+    public Color Danger { get; private init; }
     private Color Muted { get; init; }
     public Color Separator { get; private init; }
     private Color Highlight { get; init; }
