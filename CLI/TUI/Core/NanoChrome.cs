@@ -18,13 +18,13 @@ namespace image_flip_bosch.CLI.TUI.Core
     private Color KeyBackground { get; init; }
     private Color KeyForeground { get; init; }
     private Color StatusBackground { get; init; }
-    private Color Accent { get; init; }
+    public Color Accent { get; private init; }
     private Color Section { get; init; }
-    private Color Info { get; init; }
+    public Color Info { get; private init; }
     public Color Success { get; private init; }
-    private Color Warning { get; init; }
+    public Color Warning { get; private init; }
     public Color Danger { get; private init; }
-    private Color Muted { get; init; }
+    public Color Muted { get; private init; }
     public Color Separator { get; private init; }
     private Color Highlight { get; init; }
 

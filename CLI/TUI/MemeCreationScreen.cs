@@ -3,7 +3,6 @@ using image_flip_bosch.CLI.TUI.Core;
 using image_flip_bosch.CLI.Utils.Ai;
 using image_flip_bosch.CLI.Utils.Image;
 using image_flip_bosch.CLI.Utils.MemeFeed;
-using image_flip_bosch.CLI.Utils.Native;
 using image_flip_bosch.ImgFlip.Auth;
 using image_flip_bosch.ImgFlip.Requests;
 using OpenAI.Chat;
@@ -11,12 +10,10 @@ using SharpConsoleUI;
 using SharpConsoleUI.Builders;
 using SharpConsoleUI.Controls;
 using SharpConsoleUI.Core;
-using SharpConsoleUI.Helpers;
 using SharpConsoleUI.Layout;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
-using System.Text.Json;
 
 namespace image_flip_bosch.CLI.TUI
 {
@@ -42,23 +39,7 @@ namespace image_flip_bosch.CLI.TUI
       public required string ColorHex;
     }
 
-    private const string CaptionMemeToolName = "caption_meme";
     private static readonly string[] BoxColors = ["#FF3B30", "#34C759", "#0A84FF", "#FFD60A", "#FF9F0A", "#BF5AF2", "#5AC8FA", "#FF2D55"];
-    private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = false };
-
-    private static readonly ChatTool CaptionMemeTool = ChatTool.CreateFunctionTool(
-      functionName: CaptionMemeToolName,
-      functionDescription: "Create a meme image by adding captions to a template. Call it once when the user asks for a meme. Repeat the returned URL to the user afterwards.",
-      functionParameters: BinaryData.FromString("""
-      {
-        "type": "object",
-        "properties": {
-          "meme_id": { "type": "string", "description": "Template id from the list. Use the current template unless the user asks for another." },
-          "captions": { "type": "array", "items": { "type": "string" }, "description": "One caption per text box, between 1 and box_count entries." }
-        },
-        "required": ["meme_id", "captions"]
-      }
-      """));
 
     private readonly Meme _meme;
     private readonly string? _imagePath;
@@ -70,16 +51,10 @@ namespace image_flip_bosch.CLI.TUI
     private readonly TaskCompletionSource<MemeCreationResult> _result = new();
     private readonly CheckboxControl _customMode;
     private readonly MarkupControl _hint;
-    private readonly ChatTranscriptControl _transcript;
-    private readonly PromptControl _chatInput;
-    private readonly MarkupControl _chatStatus;
-    private readonly ProgressBarControl _chatProgress;
-    private readonly List<ChatMessage> _history;
-    private readonly CancellationTokenSource _chatCts = new();
+    private readonly List<ChatMessage> _chatHistory = [];
     private int _active;
     private bool _submitted;
-    private bool _chatBusy;
-    private bool _aiStarting;
+    private bool _aiOpen;
     private string? _aiUrl;
     private CancellationTokenSource? _renderCts;
 
@@ -91,7 +66,6 @@ namespace image_flip_bosch.CLI.TUI
       _meme = meme;
       _imagePath = imagePath;
       _ctx = ctx;
-      _history = [new SystemChatMessage(BuildSystemPrompt())];
       int count = Math.Clamp(meme.BoxCount, 1, 20);
 
       bool previousHadPositions = previous is not null && previous.Any(b => b.X is not null);
@@ -162,36 +136,8 @@ namespace image_flip_bosch.CLI.TUI
         .Build();
       for (int i = 0; i < column.Count; i++) left.Place(column[i], i, 0);
 
-      _transcript = new ChatTranscriptControl
-      {
-        ShowScrollbar = true,
-        HorizontalAlignment = HorizontalAlignment.Stretch,
-        VerticalAlignment = VerticalAlignment.Fill,
-      };
-      _chatStatus = Controls.Markup(Chrome.MutedText(" F2 starts the AI assistant")).Build();
-      _chatProgress = Controls.ProgressBar().WithHeader("AI").Indeterminate().ShowPercentage().Stretch().Build();
-      _chatProgress.Visible = false;
-      _chatInput = Controls.Prompt(" AI: ")
-        .WithPlaceholder("ask for captions, e.g. make it about mondays")
-        .UnfocusOnEnter(false)
-        .OnEntered((_, _) => _ = SendAsync())
-        .Build();
-      _chatInput.IsEnabled = false;
-
-      GridControl chat = Controls.Grid()
-        .Columns(GridLength.Star())
-        .Rows(GridLength.Auto(), GridLength.Star(), GridLength.Auto(), GridLength.Auto(), GridLength.Auto())
-        .WithAlignment(HorizontalAlignment.Stretch)
-        .WithVerticalAlignment(VerticalAlignment.Fill)
-        .Build();
-      chat.Place(Controls.Markup(Chrome.SectionText(" AI assistant")).Build(), 0, 0);
-      chat.Place(_transcript, 1, 0);
-      chat.Place(_chatProgress, 2, 0);
-      chat.Place(_chatStatus, 3, 0);
-      chat.Place(_chatInput, 4, 0);
-
       GridControl body = Controls.Grid()
-        .Columns(GridLength.Star(3), GridLength.Star(4), GridLength.Star(3))
+        .Columns(GridLength.Star(), GridLength.Star())
         .Rows(GridLength.Star())
         .ColumnGap(2)
         .WithAlignment(HorizontalAlignment.Stretch)
@@ -199,18 +145,8 @@ namespace image_flip_bosch.CLI.TUI
         .Build();
       body.Place(left, 0, 0);
       body.Place(_preview, 0, 1);
-      body.Place(chat, 0, 2);
 
       BuildWindow([body], modal: true);
-      _ctx.Ai.StatusChanged += OnAiStatus;
-      _ctx.Ai.Progress += OnAiProgress;
-      Window.OnClosed += (_, _) =>
-      {
-        _ctx.Ai.StatusChanged -= OnAiStatus;
-        _ctx.Ai.Progress -= OnAiProgress;
-        _chatCts.Cancel();
-      };
-      if (_ctx.Ai.IsReady) EnableChat();
       RenderOverlay();
     }
 
@@ -221,17 +157,14 @@ namespace image_flip_bosch.CLI.TUI
       ("F5", "Create"),
       ("F2", "AI"),
       ("F6", "Layout"),
-      ("F9", "Copy AI"),
-      ("F7", "Prev box"),
-      ("F10", "Save AI"),
-      ("F8", "Next box"),
-      ("F12", "Upload AI"),
       ("Esc", "Back"),
+      ("F7", "Prev box"),
+      ("F8", "Next box"),
     ];
 
     private string HintText() => Chrome.MutedText(CustomPositions
-      ? " Enter: next box. Ctrl+Arrows: move box. Alt+Arrows: resize box. F7/F8: switch box."
-      : " Enter: next box. Text is placed by ImgFlip's template layout; press F6 for custom positions.");
+      ? " Enter: next box. Ctrl+Arrows: move box. Alt+Arrows: resize box. F7/F8: switch box. F2: AI assistant."
+      : " Enter: next box. Text is placed by ImgFlip's template layout; F6 for custom positions. F2: AI assistant.");
 
     private void ModeChanged()
     {
@@ -240,7 +173,7 @@ namespace image_flip_bosch.CLI.TUI
       RenderOverlay();
     }
 
-    public Task<MemeCreationResult> ShowAsync(bool focusAi = false)
+    public Task<MemeCreationResult> ShowAsync(bool openAi = false)
     {
       Window.OnClosed += (_, _) =>
       {
@@ -248,8 +181,8 @@ namespace image_flip_bosch.CLI.TUI
         _result.TrySetResult(new MemeCreationResult(_submitted ? Collect() : null, _aiUrl));
       };
       Show();
-      if (focusAi) StartAi();
-      else Window.FocusControl(_inputs[0]);
+      Window.FocusControl(_inputs[0]);
+      if (openAi) _ = OpenAiAsync();
       return _result.Task;
     }
 
@@ -266,17 +199,13 @@ namespace image_flip_bosch.CLI.TUI
           e.Handled = true;
           return;
         case ConsoleKey.Escape: Window.Close(); e.Handled = true; return;
-        case ConsoleKey.F2: StartAi(); e.Handled = true; return;
+        case ConsoleKey.F2: _ = OpenAiAsync(); e.Handled = true; return;
         case ConsoleKey.F5: Submit(); e.Handled = true; return;
         case ConsoleKey.F6: _customMode.Checked = !_customMode.Checked; ModeChanged(); e.Handled = true; return;
         case ConsoleKey.F7: FocusBox(_active - 1); e.Handled = true; return;
         case ConsoleKey.F8: FocusBox(_active + 1); e.Handled = true; return;
-        case ConsoleKey.F9: _ = CopyAiAsync(); e.Handled = true; return;
-        case ConsoleKey.F10: _ = SaveAiAsync(); e.Handled = true; return;
-        case ConsoleKey.F12: _ = UploadAiAsync(); e.Handled = true; return;
       }
 
-      if (_chatInput.HasFocus) return;
       if (!CustomPositions || (!ctrl && !alt)) return;
       Box box = _boxes[_active];
       switch (e.KeyInfo.Key)
@@ -295,261 +224,32 @@ namespace image_flip_bosch.CLI.TUI
 
     protected override void OnChromeChanged() => RefreshLabels();
 
-    private string BuildSystemPrompt()
+    private async Task OpenAiAsync()
     {
-      var others = _ctx.Memes
-        .Where(m => m.Id != _meme.Id)
-        .Take(40)
-        .Select(m => new { id = m.Id, name = m.Name, box_count = m.BoxCount });
-      var current = new { id = _meme.Id, name = _meme.Name, box_count = _meme.BoxCount };
-      return "You are a meme caption assistant inside a terminal app. Keep answers short. " +
-        "When the user wants a meme, call caption_meme with witty captions. " +
-        $"The user is currently editing this template: {JsonSerializer.Serialize(current, JsonOptions)}. Prefer it. " +
-        "Other available templates: " + JsonSerializer.Serialize(others, JsonOptions);
-    }
-
-    private void StartAi()
-    {
-      if (_ctx.Ai.IsReady)
-      {
-        EnableChat();
-        Window.FocusControl(_chatInput);
-        return;
-      }
-      if (_aiStarting) return;
-      _aiStarting = true;
-      RunOnUi(() => _chatProgress.Visible = true);
-      _ = Task.Run(async () =>
-      {
-        try
-        {
-          await _ctx.Ai.EnsureReadyAsync(_chatCts.Token);
-          RunOnUi(() =>
-          {
-            EnableChat();
-            Window.FocusControl(_chatInput);
-          });
-        }
-        catch (OperationCanceledException) { }
-        catch (Exception ex)
-        {
-          RunOnUi(() =>
-          {
-            _chatProgress.Visible = false;
-            _chatStatus.SetContent([$"[{Chrome.Danger.ToMarkup()}] AI unavailable[/]"]);
-            _transcript.AddMessage(ChatRole.Error, ChatMarkup.Render(ex.Message));
-          });
-        }
-        finally
-        {
-          _aiStarting = false;
-        }
-      });
-    }
-
-    private void EnableChat()
-    {
-      _chatProgress.Visible = false;
-      _chatInput.IsEnabled = true;
-      _chatStatus.SetContent([Chrome.MutedText(_ctx.Imgflip.IsAuthenticated
-        ? " AI ready. Ask for captions, Enter sends."
-        : " AI ready. Not logged in to Imgflip, the AI can suggest captions but not create memes.")]);
-    }
-
-    private void OnAiStatus(AiState state, string text)
-    {
-      RunOnUi(() =>
-      {
-        _chatStatus.SetContent([state == AiState.Failed ? $"[{Chrome.Danger.ToMarkup()}] {text}[/]" : Chrome.MutedText($" {text}")]);
-        _chatProgress.Header = text;
-        _chatProgress.IsIndeterminate = true;
-      });
-    }
-
-    private void OnAiProgress(DownloadProgress p)
-    {
-      if (p.TotalBytes <= 0) return;
-      RunOnUi(() =>
-      {
-        _chatProgress.IsIndeterminate = false;
-        _chatProgress.MaxValue = p.TotalBytes;
-        _chatProgress.Value = p.BytesDownloaded;
-        _chatProgress.Header = $"{p.Label} {p.BytesDownloaded / 1048576} / {p.TotalBytes / 1048576} MB";
-      });
-    }
-
-    private async Task SendAsync()
-    {
-      if (!_ctx.Ai.IsReady) { StartAi(); return; }
-      if (_chatBusy) return;
-      string text = _chatInput.Input.Trim();
-      if (text.Length == 0) return;
-
-      _chatBusy = true;
-      _chatInput.Input = string.Empty;
-      _chatInput.IsEnabled = false;
-      _history.Add(new UserChatMessage(text));
-      ChatMessageId replyId = default;
-      RunOnUi(() =>
-      {
-        _transcript.AddMessage(ChatRole.User, ChatMarkup.Render(text), author: "You", actions: [], status: null, markdown: false);
-        replyId = _transcript.AddMessage(ChatRole.Assistant, string.Empty, author: "AI", actions: [], status: null, markdown: false);
-        _transcript.SetMarkdownMode(replyId, false);
-      });
-
+      if (_aiOpen) return;
+      _aiOpen = true;
       try
       {
-        await _ctx.Ai.ChatAsync(
-          _history,
-          CaptionMemeTool,
-          ExecuteToolAsync,
-          full => RunOnUi(() => _transcript.UpdateMessage(replyId, ChatMarkup.Render(full))),
-          preceding => RunOnUi(() => _transcript.SetStatus(replyId, "creating meme...", NotificationSeverity.Info)),
-          _chatCts.Token);
-        RunOnUi(() => _transcript.ClearStatus(replyId));
-      }
-      catch (OperationCanceledException) { }
-      catch (Exception ex)
-      {
-        RunOnUi(() => _transcript.AddMessage(ChatRole.Error, ChatMarkup.Render($"Chat failed: {ex.Message}")));
-      }
-      finally
-      {
-        _chatBusy = false;
-        RunOnUi(() =>
-        {
-          _chatInput.IsEnabled = true;
-          Window.FocusControl(_chatInput);
-        });
-      }
-    }
+        AiChatResult r = await new AiChatScreen(Ws, _meme, _ctx, _chatHistory).ShowAsync();
+        if (r.Url is null) return;
 
-    private async Task<string> ExecuteToolAsync(string name, string argumentsJson)
-    {
-      if (name != CaptionMemeToolName) return $"Unknown tool '{name}'.";
-
-      if (!_ctx.Imgflip.IsAuthenticated)
-      {
-        Say("Login (Esc, then F8) to let the AI create memes", NotificationSeverity.Warning);
-        RunOnUi(() => _transcript.AddMessage(ChatRole.Error, "Not logged in to Imgflip. Press Esc, then F8 to log in. Captions can still be typed into the boxes."));
-        return "The user is not logged in to Imgflip, so no meme can be created. Suggest the captions as text instead.";
-      }
-
-      try
-      {
-        using var args = JsonDocument.Parse(argumentsJson);
-        string? memeId = args.RootElement.TryGetProperty("meme_id", out JsonElement idEl) ? idEl.GetString() : null;
-        Meme meme = memeId == _meme.Id ? _meme : _ctx.Memes.FirstOrDefault(m => m.Id == memeId) ?? _meme;
-
-        List<string> captions = [];
-        if (args.RootElement.TryGetProperty("captions", out JsonElement captionsEl) && captionsEl.ValueKind == JsonValueKind.Array)
-          captions.AddRange(captionsEl.EnumerateArray().Select(c => c.GetString() ?? string.Empty));
-
-        if (captions.Count < 1 || captions.Count > meme.BoxCount)
-          return $"'{meme.Name}' takes between 1 and {meme.BoxCount} captions, got {captions.Count}. Try again.";
-
-        MemeCreationBox[] boxes = captions.Select(c => new MemeCreationBox { Text = c }).ToArray();
-        bool? noWatermark = _ctx.Options.NoWatermark ? true : null;
-        string url = await _ctx.Imgflip.CaptionImage(meme.Id, string.Empty, string.Empty, _ctx.Options.MaxFontSize, noWatermark, boxes);
-
-        _aiUrl = url;
-        RunOnUi(() =>
-        {
-          if (ReferenceEquals(meme, _meme))
-            for (int i = 0; i < _inputs.Count && i < captions.Count; i++) _inputs[i].Input = captions[i];
-          _transcript.AddMessage(ChatRole.Tool, $"[{Chrome.Success.ToMarkup()}]Meme created[/] {Chrome.MutedText(meme.Name)}", author: "Imgflip", actions: [], status: null, markdown: false);
-        });
-        Say("AI meme ready: F9 copy, F10 save, F12 upload", NotificationSeverity.Success);
-        _ = ShowAiResultAsync(url);
-        return $"Meme created with template '{meme.Name}': {url}";
-      }
-      catch (ImgFlipException ex)
-      {
-        RunOnUi(() => _transcript.AddMessage(ChatRole.Error, ChatMarkup.Render($"Imgflip refused: {ex.Message}")));
-        return $"Imgflip refused the request: {ex.Message}";
-      }
-      catch (Exception ex)
-      {
-        RunOnUi(() => _transcript.AddMessage(ChatRole.Error, ChatMarkup.Render($"Failed to create meme: {ex.Message}")));
-        return $"Failed to create meme: {ex.Message}";
-      }
-    }
-
-    private async Task ShowAiResultAsync(string url)
-    {
-      try
-      {
-        await _renderCts?.CancelAsync()!;
-        string path = await _ctx.Cache.GetAsync(url);
+        _aiUrl = r.Url;
+        if (r.Captions is not null && ReferenceEquals(r.Meme, _meme))
+          for (int i = 0; i < _inputs.Count && i < r.Captions.Length; i++) _inputs[i].Input = r.Captions[i];
+        Say("AI captions filled in, F5 recreates them or Esc keeps the AI meme", NotificationSeverity.Success);
+        _renderCts?.Cancel();
+        string path = await _ctx.Cache.GetAsync(r.Url);
         await _preview.LoadWhenReadyAsync(path);
       }
       catch (Exception ex)
       {
-        Say($"Preview failed: {ex.Message}", NotificationSeverity.Danger);
+        Say($"AI result failed: {ex.Message}", NotificationSeverity.Danger);
       }
-    }
-
-    private async Task CopyAiAsync()
-    {
-      if (_aiUrl is null) { Say("No AI meme yet, ask the assistant first (F2)", NotificationSeverity.Warning); return; }
-      try
+      finally
       {
-        string path = await _ctx.Cache.GetAsync(_aiUrl);
-        if (await ImageClipboard.CopyFileAsync(path))
-        {
-          Say("Image copied to clipboard", NotificationSeverity.Success);
-          return;
-        }
-        ClipboardHelper.SetText(_aiUrl);
-        Say("Image copy unsupported here, URL copied instead", NotificationSeverity.Warning);
+        _aiOpen = false;
+        Window.FocusControl(_inputs[0]);
       }
-      catch (Exception ex)
-      {
-        Say($"Copy failed: {ex.Message}", NotificationSeverity.Danger);
-      }
-    }
-
-    private async Task SaveAiAsync()
-    {
-      if (_aiUrl is null) { Say("No AI meme yet, ask the assistant first (F2)", NotificationSeverity.Warning); return; }
-      Say("Opening file explorer...");
-      string? target = await NativeFileDialog.SaveFileAsync(
-        Environment.GetFolderPath(Environment.SpecialFolder.MyPictures),
-        Path.GetFileName(new Uri(_aiUrl).AbsolutePath));
-      if (target is null) { Say("Save cancelled"); return; }
-      try
-      {
-        await FileDownloader.DownloadAsync(_aiUrl, target);
-        Say($"Saved {target}", NotificationSeverity.Success);
-      }
-      catch (Exception ex)
-      {
-        Say($"Save failed: {ex.Message}", NotificationSeverity.Danger);
-      }
-    }
-
-    private async Task UploadAiAsync()
-    {
-      if (_aiUrl is null) { Say("No AI meme yet, ask the assistant first (F2)", NotificationSeverity.Warning); return; }
-      if (_ctx.User is null) { Say("Login (Esc, then F8) to upload to the feed", NotificationSeverity.Warning); return; }
-      try
-      {
-        Say("Uploading to feed...");
-        string path = await _ctx.Cache.GetAsync(_aiUrl);
-        byte[] data = await File.ReadAllBytesAsync(path);
-        (long id, bool duplicate) = await _ctx.Feed.UploadAsync(_ctx.User, data, MemeFeedClient.ContentTypeFor(path));
-        Say(duplicate ? $"Already in the feed as #{id}" : $"Uploaded to feed as #{id}", duplicate ? NotificationSeverity.Warning : NotificationSeverity.Success);
-      }
-      catch (Exception ex)
-      {
-        Say($"Upload failed: {ex.Message}", NotificationSeverity.Danger);
-      }
-    }
-
-    private void RunOnUi(Action action)
-    {
-      if (Ws.IsOnUIThread) action();
-      else Ws.EnqueueOnUIThread(action);
     }
 
     private static string Label(int index, int count) => count switch
@@ -624,12 +324,11 @@ namespace image_flip_bosch.CLI.TUI
 
     private void CycleFocus(int direction)
     {
-      int stops = _inputs.Count + 2;
-      int current = _chatInput.HasFocus ? _inputs.Count + 1 : _customMode.HasFocus ? _inputs.Count : _active;
+      int stops = _inputs.Count + 1;
+      int current = _customMode.HasFocus ? _inputs.Count : _active;
       int next = (current + direction + stops) % stops;
 
       if (next == _inputs.Count) Window.FocusControl(_customMode);
-      else if (next == _inputs.Count + 1) Window.FocusControl(_chatInput);
       else FocusBox(next);
     }
 

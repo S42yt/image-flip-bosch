@@ -214,7 +214,7 @@ namespace image_flip_bosch.CLI.TUI
     private List<string> ShortcutRows() =>
     [
       _chrome.Key("F5", "Caption") + _chrome.Key("F6", "Copy image") + _chrome.Key("F7", "Save") + _chrome.Key("F8", "Settings") + _chrome.Key("F10", "Feed") + _chrome.Key("F12", "Upload") + (GifsAvailable ? _chrome.Key("F2", GifMode ? "Images" : "GIFs") : string.Empty),
-      _chrome.Key("Ctrl+F1", "AI") + _chrome.Key("F9", "Reload") + _chrome.Key("F3", "Theme") + _chrome.Key("F1", "Help") + _chrome.Key("F4", "Exit"),
+       _chrome.Key("F9", "Reload") + _chrome.Key("F3", "Theme") + _chrome.Key("F1", "Help") + _chrome.Key("F4", "Exit"),
     ];
 
     private string HeaderText(Meme? meme)
@@ -234,8 +234,6 @@ namespace image_flip_bosch.CLI.TUI
     {
       switch (e.KeyInfo.Key)
       {
-        case ConsoleKey.F1 when e.KeyInfo.Modifiers.HasFlag(ConsoleModifiers.Control): _ = OpenCaptionsAsync(focusAi: true);
-          break;
         case ConsoleKey.F1: ShowHelp();
           break;
         case ConsoleKey.F2 when GifsAvailable: ToggleMode();
